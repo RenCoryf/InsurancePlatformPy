@@ -1,0 +1,68 @@
+networks:
+    net:
+        driver: bridge
+
+services:
+    alembic:
+        container_name: alembic
+        networks:
+            - net
+        build: .
+        command: uv run alembic upgrade head
+        depends_on:
+            database:
+                condition: service_healthy
+        environment:
+            DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
+
+    app:
+        networks:
+            - net
+        build: .
+        develop:
+            watch:
+                - action: sync
+                  path: .
+                  target: /app
+                  ignore:
+                      - Dockerfile
+        container_name: app
+        restart: unless-stopped
+        ports:
+            - "8000:8000"
+        depends_on:
+            database:
+                condition: service_healthy
+        env_file:
+            - .env
+
+    database:
+        networks:
+            - net
+        image: postgres:18
+        container_name: database
+        restart: unless-stopped
+        env_file:
+            - .env
+        ports:
+            - "5432:5432"
+        volumes:
+            - "postgres_data:/var/lib/postgresql/data"
+        healthcheck:
+            test:
+                [
+                    "CMD-SHELL",
+                    "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}",
+                ]
+            interval: 10s
+            timeout: 5s
+            retries: 10
+        logging:
+            driver: "json-file"
+            options:
+                max-size: "5m"
+                max-file: "5"
+
+volumes:
+    postgres_data:
+
