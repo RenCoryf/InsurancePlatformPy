@@ -1,4 +1,4 @@
 from app.models.base import Base
-from app.models.tables.user import User
+from app.models.users.entities import User
 
 __all__ = ["Base", "User"]
