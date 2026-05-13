@@ -1,3 +1,6 @@
+from datetime import datetime
+from decimal import Decimal
+
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
@@ -36,9 +39,60 @@ class UserResponse(BaseModel):
     first_name: str | None
     last_name: str | None
     patronymic: str | None
+    balance: Decimal = Decimal("0")
+    pending_balance: Decimal = Decimal("0")
+    referral_code: str | None = None
 
     class Config:
         from_attributes = True
+
+
+class BalanceResponse(BaseModel):
+    balance: Decimal
+    pending_balance: Decimal
+
+
+class ReferralAccrualResponse(BaseModel):
+    id: int
+    source_user_id: int
+    level: int
+    percent: Decimal
+    base_amount: Decimal
+    amount: Decimal
+    status: str
+    created_at: datetime
+    available_at: datetime
+    credited_at: datetime | None
+
+    class Config:
+        from_attributes = True
+
+
+class StructureLevelInfo(BaseModel):
+    level: int
+    count: int
+
+
+class StructureSummaryResponse(BaseModel):
+    referral_code: str
+    referral_link: str
+    total: int
+    levels: list[StructureLevelInfo]
+
+
+class StructureMemberInfo(BaseModel):
+    id: int
+    full_name: str
+    phone: str
+    joined_at: datetime
+
+
+class StructureListResponse(BaseModel):
+    levels: dict[int, list[StructureMemberInfo]]
+
+
+class AccrueRequest(BaseModel):
+    base_amount: Decimal = Field(..., gt=0, description="Базовая сумма доходного события")
 
 
 class RequestSmsCodeRequest(BaseModel):
@@ -53,7 +107,8 @@ class RequestSmsCodeRequest(BaseModel):
         return digits_only
 
 
-class RegisterWithCodeRequest(BaseModel):
+class RegisterRequest(BaseModel):
+
     phone: str = Field(..., min_length=10, max_length=20, description="Phone number")
     code: str = Field(..., min_length=6, max_length=6, description="SMS verification code")
     email: EmailStr = Field(..., description="User email address")
@@ -61,6 +116,9 @@ class RegisterWithCodeRequest(BaseModel):
     first_name: str | None = Field(None, max_length=100, description="First name")
     last_name: str | None = Field(None, max_length=100, description="Last name")
     patronymic: str | None = Field(None, max_length=100, description="Patronymic")
+    referral_code: str = Field(
+        ..., min_length=4, max_length=16, description="Реферальный код пригласившего"
+    )
 
     @field_validator("phone")
     @classmethod

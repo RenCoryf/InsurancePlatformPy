@@ -5,7 +5,7 @@ from app.core.database import get_async_session
 from app.services.auth_service import AuthService
 from app.models.users.dto import (
     RequestSmsCodeRequest,
-    RegisterWithCodeRequest,
+    RegisterRequest,
     LoginWithCodeRequest,
     TokenResponse,
     RefreshTokenRequest,
@@ -27,7 +27,7 @@ async def request_sms_code(
 
 @router.post("/register/", status_code=status.HTTP_201_CREATED)
 async def register(
-    data: RegisterWithCodeRequest,
+    data: RegisterRequest,
     session: AsyncSession = Depends(get_async_session),
 ) -> TokenResponse:
     auth_service = AuthService(session)
