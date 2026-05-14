@@ -7,7 +7,7 @@ from passlib.context import CryptContext
 from jose import jwt, JWTError
 
 from app.models.users.dto import (
-    RegisterWithCodeRequest,
+    RegisterRequest,
     LoginWithCodeRequest,
     TokenResponse,
     UserResponse,
@@ -45,6 +45,17 @@ class AuthService:
     def _generate_refresh_token(self) -> str:
         return secrets.token_urlsafe(32)
 
+    async def _generate_unique_referral_code(self, length: int = 8) -> str:
+        alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+        for _ in range(10):
+            code = "".join(secrets.choice(alphabet) for _ in range(length))
+            existing = await self._session.execute(
+                select(User).where(User.referral_code == code)
+            )
+            if existing.scalar_one_or_none() is None:
+                return code
+        raise RuntimeError("Failed to generate unique referral code")
+
     async def _create_refresh_token(self, user_id: int) -> RefreshToken:
         token = self._generate_refresh_token()
         expires_at = datetime.utcnow() + timedelta(days=settings.jwt_refresh_token_expire_days)
@@ -69,17 +80,25 @@ class AuthService:
     async def request_sms_code(self, phone: str) -> None:
         logger.info(f"[MOCK SMS] Code sent to {phone}: {self.MOCK_SMS_CODE}")
 
-    async def register(self, data: RegisterWithCodeRequest) -> TokenResponse:
+    async def _ensure_phone_unique(self, phone: str) -> None:
+        result = await self._session.execute(
+            select(User).where(User.phone == phone)
+        )
+        if result.scalar_one_or_none() is not None:
+            raise ValueError("Phone number already registered")
+
+    async def register(self, data: RegisterRequest) -> TokenResponse:
         if not self._verify_sms_code(data.code):
             raise ValueError("Invalid or expired verification code")
 
-        result = await self._session.execute(
-            select(User).where(User.phone == data.phone)
-        )
-        existing_user = result.scalar_one_or_none()
-        if existing_user:
-            raise ValueError("Phone number already registered")
+        await self._ensure_phone_unique(data.phone)
 
+        ref_result = await self._session.execute(
+            select(User).where(User.referral_code == data.referral_code)
+        )
+        referrer = ref_result.scalar_one_or_none()
+        if not referrer:
+            raise ValueError("Invalid referral code")
 
         user = User(
             email=data.email,
@@ -88,6 +107,8 @@ class AuthService:
             first_name=data.first_name,
             last_name=data.last_name,
             patronymic=data.patronymic,
+            referral_code=await self._generate_unique_referral_code(),
+            referrer_id=referrer.id,
         )
 
         self._session.add(user)
