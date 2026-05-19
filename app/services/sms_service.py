@@ -34,6 +34,12 @@ class SMSService_SMSC:
         self.password = password
         self._lk_url = lk_url
 
+    @classmethod
+    def with_credentials(
+        cls, username: str, password: str, lk_url: str
+    ) -> "SMSService_SMSC":
+        return cls(username=username, password=password, lk_url=lk_url)
+
     def _gen_mes(self, code: str) -> str:
         return f"Ваш код подтверждения: {code}\nЛичный кабинет: {self.ReserveURL}"
 

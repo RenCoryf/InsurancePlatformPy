@@ -1,29 +1,29 @@
 import logging
 import secrets
 from datetime import datetime, timedelta
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from passlib.context import CryptContext
-from jose import jwt, JWTError
 
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.config import settings
 from app.models.users.dto import (
-    RegisterRequest,
     LoginWithCodeRequest,
+    RefreshTokenRequest,
+    RegisterRequest,
     TokenResponse,
     UserResponse,
-    RefreshTokenRequest,
 )
 from app.models.users.entities import User
 from app.models.users.refresh_token import RefreshToken
-from app.core.config import settings
+from app.services.sms_service import SMSService_SMSC
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 logger = logging.getLogger(__name__)
 
 
 class AuthService:
-    MOCK_SMS_CODE = "123456"
-
     def __init__(self, session: AsyncSession):
         self._session = session
 
@@ -37,10 +37,13 @@ class AuthService:
         payload = {
             "user_id": user_id,
             "type": "access",
-            "exp": datetime.utcnow() + timedelta(minutes=settings.jwt_access_token_expire_minutes),
+            "exp": datetime.utcnow()
+            + timedelta(minutes=settings.jwt_access_token_expire_minutes),
             "iat": datetime.utcnow(),
         }
-        return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+        return jwt.encode(
+            payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm
+        )
 
     def _generate_refresh_token(self) -> str:
         return secrets.token_urlsafe(32)
@@ -58,32 +61,33 @@ class AuthService:
 
     async def _create_refresh_token(self, user_id: int) -> RefreshToken:
         token = self._generate_refresh_token()
-        expires_at = datetime.utcnow() + timedelta(days=settings.jwt_refresh_token_expire_days)
-        
+        expires_at = datetime.utcnow() + timedelta(
+            days=settings.jwt_refresh_token_expire_days
+        )
+
         refresh_token = RefreshToken(
             token=token,
             user_id=user_id,
             expires_at=expires_at,
         )
-        
+
         self._session.add(refresh_token)
         await self._session.commit()
         await self._session.refresh(refresh_token)
-        
+
         return refresh_token
 
-    def _verify_sms_code(self, code: str) -> bool:
-        is_valid = code == self.MOCK_SMS_CODE
-        logger.info(f"[MOCK SMS] Code verification: {code} -> {is_valid}")
+    def _verify_sms_code(self, code: str, phone: str) -> bool:
+        sms_service = SMSService_SMSC.with_credentials()
+        is_valid = sms_service.verify_code(code, phone)
+        logger.info(f" Code verification: {code} -> {is_valid}")
         return is_valid
 
     async def request_sms_code(self, phone: str) -> None:
-        logger.info(f"[MOCK SMS] Code sent to {phone}: {self.MOCK_SMS_CODE}")
+        logger.info(f"Code sent to {phone}: {self.MOCK_SMS_CODE}")
 
     async def _ensure_phone_unique(self, phone: str) -> None:
-        result = await self._session.execute(
-            select(User).where(User.phone == phone)
-        )
+        result = await self._session.execute(select(User).where(User.phone == phone))
         if result.scalar_one_or_none() is not None:
             raise ValueError("Phone number already registered")
 

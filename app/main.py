@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 
+import dotenv
 import redis.asyncio as redis
 from fastapi import FastAPI
 
@@ -8,6 +9,7 @@ from app.api.main_router import api_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    dotenv.load_dotenv()
     app.state.redis = redis.Redis(
         host="localhost",
         port=6379,
