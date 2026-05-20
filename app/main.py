@@ -8,6 +8,8 @@ from starlette.requests import Request
 
 from app.api.main_router import api_router
 from app.api.routers.internal import router as internal_router
+from app.core.config import settings
+from app.core.minio_client import build_minio_client, ensure_bucket
 from app.services.errors import ChatError
 
 
@@ -18,6 +20,12 @@ async def lifespan(app: FastAPI):
         port=6379,
         decode_responses=True,
     )
+    app.state.minio = build_minio_client()
+    try:
+        ensure_bucket(app.state.minio, settings.minio_bucket)
+    except Exception:
+        # MinIO may be unreachable in test/dev environments; tests inject a fake client.
+        pass
     yield
     await app.state.redis.close()
 
