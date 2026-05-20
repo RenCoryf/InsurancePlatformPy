@@ -24,3 +24,14 @@ def test_chat_columns():
     assert Chat.__tablename__ == "chats"
     constraints = {c.name for c in Chat.__table__.constraints if c.name}
     assert "uq_chats_owner_type" in constraints
+
+
+def test_file_columns():
+    from app.models.tables.file import File
+
+    cols = {c.name for c in inspect(File).columns}
+    assert cols == {
+        "id", "chat_id", "uploader_subject_type", "uploader_subject_id",
+        "original_name", "mime_type", "size_bytes", "minio_key", "created_at",
+    }
+    assert File.__tablename__ == "files"
