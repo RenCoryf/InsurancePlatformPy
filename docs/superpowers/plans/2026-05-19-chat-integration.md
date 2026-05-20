@@ -1,5 +1,12 @@
 # Chat Integration Implementation Plan
 
+> **⚠️ DEPRECATED 2026-05-21.** This plan was built against
+> [`docs/superpowers/specs/2026-05-19-chat-integration-design.md`](../specs/2026-05-19-chat-integration-design.md),
+> which has been superseded by
+> [`docs/superpowers/specs/2026-05-21-chat-server-design.md`](../specs/2026-05-21-chat-server-design.md).
+> Do not execute this plan. A new implementation plan will be written from the
+> 2026-05-21 spec.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build the Python (FastAPI) server side that the Go `chatgw` WebSocket gateway depends on — internal endpoints, chat/message/file data model, support login, MinIO presigned uploads, public chat endpoints.

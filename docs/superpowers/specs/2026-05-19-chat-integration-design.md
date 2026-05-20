@@ -1,6 +1,15 @@
 # Chat Integration Design — Python Server for Go `chatgw`
 
-**Status:** Approved design; ready for implementation planning.
+> **⚠️ DEPRECATED 2026-05-21.** Superseded by
+> [`2026-05-21-chat-server-design.md`](./2026-05-21-chat-server-design.md).
+> This document is preserved for historical context only — do not implement
+> from it. Key reasons for replacement: the secondary chat type was renamed
+> from "sidequest" to "bonus"; support agents moved to a dedicated
+> `support_agents` table; admin HTTP endpoints replace the CLI-only seeder;
+> file upload/download flow through Python (no presigned URLs); chats are
+> lazy-created on first WS connect instead of eagerly at registration.
+
+**Status:** Superseded; do not use.
 **Date:** 2026-05-19
 **Scope:** Implement the Python (FastAPI) server side that the Go `chatgw` WebSocket gateway depends on, plus the public chat and file endpoints needed for a working frontend.
 
