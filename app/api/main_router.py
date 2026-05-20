@@ -12,6 +12,7 @@ from app.api.routers.me import router as me_router
 from app.api.routers.partners import router as partners_router
 from app.api.routers.referrals import router as referrals_router
 from app.api.routers.reports import router as reports_router
+from app.api.routers.support import router as support_router
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(auth_router)
@@ -26,3 +27,4 @@ api_router.include_router(chats_router)
 api_router.include_router(files_router)
 api_router.include_router(reports_router)
 api_router.include_router(admin_router)
+api_router.include_router(support_router)
