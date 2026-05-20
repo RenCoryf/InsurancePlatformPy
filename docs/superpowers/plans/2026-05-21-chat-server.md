@@ -122,11 +122,9 @@ Expected: `uv` updates `pyproject.toml` and `uv.lock`. Adds three new lines unde
 
 Run:
 ```bash
-uv add --dev pytest pytest-asyncio pytest-anyio httpx
+uv add --dev pytest pytest-asyncio
 ```
-Expected: creates `[dependency-groups] dev` (if absent) with the new entries. `httpx` is likely already a runtime dep — `uv` will leave that alone and only ensure the dev group has access.
-
-Note: `httpx` is already a runtime dep so the `--dev` add may be redundant; that's fine.
+Expected: creates `[dependency-groups] dev` with the new entries. `httpx` is already a runtime dep — tests can use it from there, no need to duplicate it into dev. The anyio plugin ships inside `anyio` itself (transitive via httpx/fastapi); there's no separate `pytest-anyio` package on PyPI worth installing.
 
 - [ ] **Step 4: Verify**
 
