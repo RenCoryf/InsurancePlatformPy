@@ -12,3 +12,15 @@ def test_support_agent_columns():
         "created_at", "updated_at",
     }
     assert SupportAgent.__tablename__ == "support_agents"
+
+
+def test_chat_columns():
+    from app.models.tables.chat import Chat
+
+    cols = {c.name for c in inspect(Chat).columns}
+    assert cols == {
+        "id", "owner_user_id", "type", "created_at", "last_message_at",
+    }
+    assert Chat.__tablename__ == "chats"
+    constraints = {c.name for c in Chat.__table__.constraints if c.name}
+    assert "uq_chats_owner_type" in constraints
