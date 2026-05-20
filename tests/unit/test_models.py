@@ -35,3 +35,14 @@ def test_file_columns():
         "original_name", "mime_type", "size_bytes", "minio_key", "created_at",
     }
     assert File.__tablename__ == "files"
+
+
+def test_message_columns():
+    from app.models.tables.message import Message
+
+    cols = {c.name for c in inspect(Message).columns}
+    assert cols == {
+        "id", "chat_id", "sender_subject_type", "sender_subject_id",
+        "kind", "body", "file_id", "client_msg_id", "created_at",
+    }
+    assert Message.__tablename__ == "messages"
