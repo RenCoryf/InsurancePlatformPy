@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.api.routers.admin import router as admin_router
 from app.api.routers.applications import router as applications_router
 from app.api.routers.auth import router as auth_router
 from app.api.routers.bonuses import router as bonuses_router
@@ -24,3 +25,4 @@ api_router.include_router(certificates_router)
 api_router.include_router(chats_router)
 api_router.include_router(files_router)
 api_router.include_router(reports_router)
+api_router.include_router(admin_router)
