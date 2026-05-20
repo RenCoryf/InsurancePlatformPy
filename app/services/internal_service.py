@@ -67,7 +67,9 @@ class InternalService:
         cr = ChatRepository(self._session)
         chat = await cr.get_by_id(hint_uuid)
         if chat is None:
-            raise ChatError("validation", "chat not found", http_status=404)
+            # 401 so Go's pyclient maps to ErrUnauthorized (it only treats 401/403
+            # as auth failures; other codes become 5xx in the gateway).
+            raise ChatError("validation", "chat not found", http_status=401)
         if chat.type != chat_type:
             raise ChatError("validation", "chat_type mismatch", http_status=400)
         return WsValidateResponse(user_id=sub_claim, role="support", chat_id=chat.id)

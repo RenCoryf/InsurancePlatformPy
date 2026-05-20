@@ -44,7 +44,8 @@ async def test_ws_validate_user_idempotent(db_session, user):
 
 
 @pytest.mark.asyncio
-async def test_ws_validate_support_with_unknown_chat_404(db_session):
+async def test_ws_validate_support_with_unknown_chat_401(db_session):
+    """Unknown chat_id_hint → 401 so Go's pyclient maps it to ErrUnauthorized."""
     agent = SupportAgent(login="kim", password_hash="x", display_name="Kim", is_active=True)
     db_session.add(agent)
     await db_session.commit()
@@ -55,7 +56,7 @@ async def test_ws_validate_support_with_unknown_chat_404(db_session):
     import uuid as _u
     with pytest.raises(ChatError) as ei:
         await svc.ws_validate(token=tok, chat_type="main", chat_id_hint=str(_u.uuid4()))
-    assert ei.value.http_status == 404
+    assert ei.value.http_status == 401
 
 
 @pytest.mark.asyncio

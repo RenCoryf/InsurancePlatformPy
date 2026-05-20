@@ -174,7 +174,7 @@ Behavior:
 4. Validate `chat_type` ∈ {`main`, `bonus`} → 400 (`code=validation`).
 5. Resolve `chat_id`:
    - User: ignore `chat_id_hint`. `INSERT … ON CONFLICT (owner_user_id, type) DO NOTHING RETURNING id`; if empty, `SELECT id WHERE owner_user_id=? AND type=?`.
-   - Support: `chat_id_hint` required and must be UUID. `SELECT … WHERE id=?`; 404 if missing. Verify `type` matches → 400 if mismatch.
+   - Support: `chat_id_hint` required and must be UUID. `SELECT … WHERE id=?`; 401 if missing (Go's `pyclient` only treats 401/403 as `ErrUnauthorized`; any other 4xx becomes a 5xx in the gateway). Verify `type` matches → 400 if mismatch.
 6. Return:
 ```json
 { "user_id": "user:42" | "support:7", "role": "user" | "support", "chat_id": "<uuid>" }
