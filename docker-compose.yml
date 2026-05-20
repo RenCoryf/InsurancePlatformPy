@@ -40,7 +40,8 @@ services:
         ports:
             - "5432:5432"
         volumes:
-            - "postgres_data:/var/lib/postgresql/data"
+            # postgres:18 changed convention — mount the parent dir, not /data
+            - "postgres_data:/var/lib/postgresql"
         healthcheck:
             test:
                 [
