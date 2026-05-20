@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from starlette.requests import Request
 
 from app.api.main_router import api_router
+from app.api.routers.internal import router as internal_router
 from app.services.errors import ChatError
 
 
@@ -30,6 +31,7 @@ app = FastAPI(
 
 
 app.include_router(api_router)
+app.include_router(internal_router)  # mounted at /internal/*, no /api/v1 prefix
 
 
 @app.exception_handler(RequestValidationError)
