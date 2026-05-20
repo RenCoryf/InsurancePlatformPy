@@ -360,8 +360,12 @@ from app.core.config import settings
 from app.models.base import Base
 
 # Import every table module so Base.metadata is populated.
-import app.models.tables.user  # noqa: F401
-import app.models.tables.refresh_token  # noqa: F401
+# Note: the canonical User and RefreshToken classes live under
+# app.models.users.*, NOT app.models.tables.user / refresh_token
+# (those exist as unused duplicates and collide on __tablename__ if
+# imported alongside the canonical versions).
+import app.models.users.entities  # noqa: F401   (User)
+import app.models.users.refresh_token  # noqa: F401   (RefreshToken)
 import app.models.tables.chat  # noqa: F401
 import app.models.tables.message  # noqa: F401
 import app.models.tables.file  # noqa: F401
