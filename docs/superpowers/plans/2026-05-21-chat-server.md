@@ -723,7 +723,83 @@ git add app/models/tables/message.py tests/unit/test_models.py
 git commit -m "model: messages table"
 ```
 
-### Task 2.5: Alembic migration
+### Task 2.5: Baseline Alembic migration (existing users/refresh_tokens tables)
+
+The pre-existing project never used Alembic, so a fresh dev DB has no `users` or `refresh_tokens` tables. Phase 2's chat-domain migration FKs into `users.id`, so we need a baseline migration first that declares the existing schema. This baseline mirrors the live ORM definitions in `app/models/users/entities.py` and `app/models/users/refresh_token.py`.
+
+**Files:**
+- Create: `alembic/versions/20260521_0000_baseline.py`
+
+- [ ] **Step 1: Create the baseline migration**
+
+Write `alembic/versions/20260521_0000_baseline.py`:
+
+```python
+"""baseline — existing users and refresh_tokens tables
+
+Revision ID: 20260521_0000
+Revises:
+Create Date: 2026-05-21
+"""
+
+import sqlalchemy as sa
+from alembic import op
+
+
+revision = "20260521_0000"
+down_revision = None
+branch_labels = None
+depends_on = None
+
+
+def upgrade() -> None:
+    op.create_table(
+        "users",
+        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+        sa.Column("email", sa.String(255), nullable=False),
+        sa.Column("phone", sa.String(20), nullable=False, unique=True),
+        sa.Column("password_hash", sa.String(255), nullable=False),
+        sa.Column("first_name", sa.String(100), nullable=True),
+        sa.Column("last_name", sa.String(100), nullable=True),
+        sa.Column("patronymic", sa.String(100), nullable=True),
+        sa.Column("balance", sa.Numeric(14, 2), nullable=False, server_default=sa.text("0")),
+        sa.Column("pending_balance", sa.Numeric(14, 2), nullable=False, server_default=sa.text("0")),
+        sa.Column("referral_code", sa.String(16), nullable=False, unique=True),
+        sa.Column("referrer_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+    )
+    op.create_index("ix_users_referral_code", "users", ["referral_code"], unique=True)
+    op.create_index("ix_users_referrer_id", "users", ["referrer_id"])
+
+    op.create_table(
+        "refresh_tokens",
+        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+        sa.Column("token", sa.String(500), nullable=False, unique=True),
+        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.text("now()")),
+        sa.Column("expires_at", sa.DateTime(), nullable=False),
+        sa.Column("is_revoked", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+    )
+    op.create_index("ix_refresh_tokens_token", "refresh_tokens", ["token"], unique=True)
+
+
+def downgrade() -> None:
+    op.drop_index("ix_refresh_tokens_token", table_name="refresh_tokens")
+    op.drop_table("refresh_tokens")
+    op.drop_index("ix_users_referrer_id", table_name="users")
+    op.drop_index("ix_users_referral_code", table_name="users")
+    op.drop_table("users")
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add alembic/versions/20260521_0000_baseline.py
+git commit -m "migration: baseline users + refresh_tokens"
+```
+
+### Task 2.6: Chat domain Alembic migration
 
 **Files:**
 - Create: `alembic/versions/20260521_0001_chat_domain.py`
@@ -754,7 +830,7 @@ from sqlalchemy.dialects.postgresql import UUID
 
 
 revision = "20260521_0001"
-down_revision = None
+down_revision = "20260521_0000"
 branch_labels = None
 depends_on = None
 
