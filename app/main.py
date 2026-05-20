@@ -2,8 +2,12 @@ from contextlib import asynccontextmanager
 
 import redis.asyncio as redis
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from starlette.requests import Request
 
 from app.api.main_router import api_router
+from app.services.errors import ChatError
 
 
 @asynccontextmanager
@@ -26,6 +30,25 @@ app = FastAPI(
 
 
 app.include_router(api_router)
+
+
+@app.exception_handler(RequestValidationError)
+async def _internal_validation_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+    """For /internal/* routes, convert FastAPI's 422 into Go's expected
+    {code: 'validation', reason: '<first error>'} envelope. Other routes get
+    the default FastAPI 422."""
+    if request.url.path.startswith("/internal/"):
+        errs = exc.errors()
+        first = errs[0] if errs else {"msg": "invalid request"}
+        reason = first.get("msg", "invalid request")
+        return JSONResponse(status_code=400, content={"code": "validation", "reason": reason})
+    # default-shape fallback for non-internal routes (keep FastAPI behavior)
+    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+
+
+@app.exception_handler(ChatError)
+async def _chat_error_handler(request: Request, exc: ChatError) -> JSONResponse:
+    return JSONResponse(status_code=exc.http_status, content={"code": exc.code, "reason": exc.reason})
 
 
 if __name__ == "__main__":
