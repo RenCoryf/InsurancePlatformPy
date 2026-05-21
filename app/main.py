@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 import redis.asyncio as redis
 from fastapi import FastAPI
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.requests import Request
@@ -52,8 +53,10 @@ async def _internal_validation_handler(request: Request, exc: RequestValidationE
         first = errs[0] if errs else {"msg": "invalid request"}
         reason = first.get("msg", "invalid request")
         return JSONResponse(status_code=400, content={"code": "validation", "reason": reason})
-    # default-shape fallback for non-internal routes (keep FastAPI behavior)
-    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+    # default-shape fallback for non-internal routes (keep FastAPI behavior).
+    # Use jsonable_encoder because exc.errors() embeds raw exception objects
+    # (e.g. ValueError in `ctx`) that json.dumps can't serialize directly.
+    return JSONResponse(status_code=422, content={"detail": jsonable_encoder(exc.errors())})
 
 
 @app.exception_handler(ChatError)
