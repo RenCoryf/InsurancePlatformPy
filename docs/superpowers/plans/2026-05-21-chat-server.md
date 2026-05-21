@@ -2937,7 +2937,10 @@ async def test_ws_validate_user_idempotent(db_session, user):
 
 
 @pytest.mark.asyncio
-async def test_ws_validate_support_with_unknown_chat_404(db_session):
+async def test_ws_validate_support_with_unknown_chat_401(db_session):
+    """Unknown chat_id_hint → 401 so Go's pyclient maps it to ErrUnauthorized
+    (it only treats 401/403 as auth failures; other codes become 5xx in the
+    gateway)."""
     agent = SupportAgent(login="kim", password_hash="x", display_name="Kim", is_active=True)
     db_session.add(agent)
     await db_session.commit()
@@ -2948,7 +2951,7 @@ async def test_ws_validate_support_with_unknown_chat_404(db_session):
     import uuid as _u
     with pytest.raises(ChatError) as ei:
         await svc.ws_validate(token=tok, chat_type="main", chat_id_hint=str(_u.uuid4()))
-    assert ei.value.http_status == 404
+    assert ei.value.http_status == 401
 
 
 @pytest.mark.asyncio
@@ -3122,7 +3125,9 @@ class InternalService:
         cr = ChatRepository(self._session)
         chat = await cr.get_by_id(hint_uuid)
         if chat is None:
-            raise ChatError("validation", "chat not found", http_status=404)
+            # 401 so Go's pyclient maps to ErrUnauthorized (it only treats
+            # 401/403 as auth failures; other codes become 5xx in the gateway).
+            raise ChatError("validation", "chat not found", http_status=401)
         if chat.type != chat_type:
             raise ChatError("validation", "chat_type mismatch", http_status=400)
         return WsValidateResponse(user_id=sub_claim, role="support", chat_id=chat.id)

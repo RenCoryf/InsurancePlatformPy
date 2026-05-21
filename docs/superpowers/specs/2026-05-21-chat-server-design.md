@@ -109,8 +109,10 @@ Four new tables. All additive — `users` and `refresh_tokens` are untouched.
 Lazy-created by `/internal/auth/ws-validate`:
 - User-side: insert if `(user_id, type)` row is missing. UNIQUE constraint
   serializes concurrent first-connects.
-- Support-side: the row must already exist; if not, 404. Support cannot
-  fabricate `chat_id`s.
+- Support-side: the row must already exist; if not, 401 (matches the Go
+  `pyclient.Validate` contract — 401/403 are the only auth-rejection
+  codes it maps to `ErrUnauthorized`). Support cannot fabricate
+  `chat_id`s.
 
 ### `messages`
 
@@ -489,7 +491,7 @@ Required cases (the minimum set before declaring complete):
 
 1. `ws_validate_user_creates_main_chat_lazily`
 2. `ws_validate_user_main_chat_idempotent` (concurrent requests, no UNIQUE violation surfaced)
-3. `ws_validate_support_with_unknown_chat_id_404`
+3. `ws_validate_support_with_unknown_chat_id_401`
 4. `ws_validate_support_chat_type_mismatch_400`
 5. `persist_message_idempotent_on_client_msg_id` (same row, same response, no `last_message_at` re-bump)
 6. `persist_message_file_not_in_chat_400`
