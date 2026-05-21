@@ -122,11 +122,9 @@ Expected: `uv` updates `pyproject.toml` and `uv.lock`. Adds three new lines unde
 
 Run:
 ```bash
-uv add --dev pytest pytest-asyncio pytest-anyio httpx
+uv add --dev pytest pytest-asyncio
 ```
-Expected: creates `[dependency-groups] dev` (if absent) with the new entries. `httpx` is likely already a runtime dep — `uv` will leave that alone and only ensure the dev group has access.
-
-Note: `httpx` is already a runtime dep so the `--dev` add may be redundant; that's fine.
+Expected: creates `[dependency-groups] dev` with the new entries. `httpx` is already a runtime dep — tests can use it from there, no need to duplicate it into dev. The anyio plugin ships inside `anyio` itself (transitive via httpx/fastapi); there's no separate `pytest-anyio` package on PyPI worth installing.
 
 - [ ] **Step 4: Verify**
 
@@ -362,8 +360,12 @@ from app.core.config import settings
 from app.models.base import Base
 
 # Import every table module so Base.metadata is populated.
-import app.models.tables.user  # noqa: F401
-import app.models.tables.refresh_token  # noqa: F401
+# Note: the canonical User and RefreshToken classes live under
+# app.models.users.*, NOT app.models.tables.user / refresh_token
+# (those exist as unused duplicates and collide on __tablename__ if
+# imported alongside the canonical versions).
+import app.models.users.entities  # noqa: F401   (User)
+import app.models.users.refresh_token  # noqa: F401   (RefreshToken)
 import app.models.tables.chat  # noqa: F401
 import app.models.tables.message  # noqa: F401
 import app.models.tables.file  # noqa: F401
@@ -721,7 +723,83 @@ git add app/models/tables/message.py tests/unit/test_models.py
 git commit -m "model: messages table"
 ```
 
-### Task 2.5: Alembic migration
+### Task 2.5: Baseline Alembic migration (existing users/refresh_tokens tables)
+
+The pre-existing project never used Alembic, so a fresh dev DB has no `users` or `refresh_tokens` tables. Phase 2's chat-domain migration FKs into `users.id`, so we need a baseline migration first that declares the existing schema. This baseline mirrors the live ORM definitions in `app/models/users/entities.py` and `app/models/users/refresh_token.py`.
+
+**Files:**
+- Create: `alembic/versions/20260521_0000_baseline.py`
+
+- [ ] **Step 1: Create the baseline migration**
+
+Write `alembic/versions/20260521_0000_baseline.py`:
+
+```python
+"""baseline — existing users and refresh_tokens tables
+
+Revision ID: 20260521_0000
+Revises:
+Create Date: 2026-05-21
+"""
+
+import sqlalchemy as sa
+from alembic import op
+
+
+revision = "20260521_0000"
+down_revision = None
+branch_labels = None
+depends_on = None
+
+
+def upgrade() -> None:
+    op.create_table(
+        "users",
+        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+        sa.Column("email", sa.String(255), nullable=False),
+        sa.Column("phone", sa.String(20), nullable=False, unique=True),
+        sa.Column("password_hash", sa.String(255), nullable=False),
+        sa.Column("first_name", sa.String(100), nullable=True),
+        sa.Column("last_name", sa.String(100), nullable=True),
+        sa.Column("patronymic", sa.String(100), nullable=True),
+        sa.Column("balance", sa.Numeric(14, 2), nullable=False, server_default=sa.text("0")),
+        sa.Column("pending_balance", sa.Numeric(14, 2), nullable=False, server_default=sa.text("0")),
+        sa.Column("referral_code", sa.String(16), nullable=False, unique=True),
+        sa.Column("referrer_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="SET NULL"), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+    )
+    op.create_index("ix_users_referral_code", "users", ["referral_code"], unique=True)
+    op.create_index("ix_users_referrer_id", "users", ["referrer_id"])
+
+    op.create_table(
+        "refresh_tokens",
+        sa.Column("id", sa.Integer(), primary_key=True, autoincrement=True),
+        sa.Column("token", sa.String(500), nullable=False, unique=True),
+        sa.Column("user_id", sa.Integer(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.text("now()")),
+        sa.Column("expires_at", sa.DateTime(), nullable=False),
+        sa.Column("is_revoked", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+    )
+    op.create_index("ix_refresh_tokens_token", "refresh_tokens", ["token"], unique=True)
+
+
+def downgrade() -> None:
+    op.drop_index("ix_refresh_tokens_token", table_name="refresh_tokens")
+    op.drop_table("refresh_tokens")
+    op.drop_index("ix_users_referrer_id", table_name="users")
+    op.drop_index("ix_users_referral_code", table_name="users")
+    op.drop_table("users")
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add alembic/versions/20260521_0000_baseline.py
+git commit -m "migration: baseline users + refresh_tokens"
+```
+
+### Task 2.6: Chat domain Alembic migration
 
 **Files:**
 - Create: `alembic/versions/20260521_0001_chat_domain.py`
@@ -752,7 +830,7 @@ from sqlalchemy.dialects.postgresql import UUID
 
 
 revision = "20260521_0001"
-down_revision = None
+down_revision = "20260521_0000"
 branch_labels = None
 depends_on = None
 
@@ -2859,7 +2937,10 @@ async def test_ws_validate_user_idempotent(db_session, user):
 
 
 @pytest.mark.asyncio
-async def test_ws_validate_support_with_unknown_chat_404(db_session):
+async def test_ws_validate_support_with_unknown_chat_401(db_session):
+    """Unknown chat_id_hint → 401 so Go's pyclient maps it to ErrUnauthorized
+    (it only treats 401/403 as auth failures; other codes become 5xx in the
+    gateway)."""
     agent = SupportAgent(login="kim", password_hash="x", display_name="Kim", is_active=True)
     db_session.add(agent)
     await db_session.commit()
@@ -2870,7 +2951,7 @@ async def test_ws_validate_support_with_unknown_chat_404(db_session):
     import uuid as _u
     with pytest.raises(ChatError) as ei:
         await svc.ws_validate(token=tok, chat_type="main", chat_id_hint=str(_u.uuid4()))
-    assert ei.value.http_status == 404
+    assert ei.value.http_status == 401
 
 
 @pytest.mark.asyncio
@@ -3044,7 +3125,9 @@ class InternalService:
         cr = ChatRepository(self._session)
         chat = await cr.get_by_id(hint_uuid)
         if chat is None:
-            raise ChatError("validation", "chat not found", http_status=404)
+            # 401 so Go's pyclient maps to ErrUnauthorized (it only treats
+            # 401/403 as auth failures; other codes become 5xx in the gateway).
+            raise ChatError("validation", "chat not found", http_status=401)
         if chat.type != chat_type:
             raise ChatError("validation", "chat_type mismatch", http_status=400)
         return WsValidateResponse(user_id=sub_claim, role="support", chat_id=chat.id)

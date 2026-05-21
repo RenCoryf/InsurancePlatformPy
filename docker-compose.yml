@@ -40,7 +40,8 @@ services:
         ports:
             - "5432:5432"
         volumes:
-            - "postgres_data:/var/lib/postgresql/data"
+            # postgres:18 changed convention — mount the parent dir, not /data
+            - "postgres_data:/var/lib/postgresql"
         healthcheck:
             test:
                 [
@@ -55,6 +56,25 @@ services:
             options:
                 max-size: "5m"
                 max-file: "5"
+    minio:
+        image: minio/minio:latest
+        container_name: minio
+        ports:
+            - "9000:9000"
+            - "9001:9001"
+        environment:
+            MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+            MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
+        command: server /data --console-address ":9001"
+        volumes:
+            - minio_data:/data
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+        networks:
+            - net
     redis:
         networks:
             - net
@@ -83,3 +103,4 @@ services:
 volumes:
     postgres_data:
     redis_data:
+    minio_data:

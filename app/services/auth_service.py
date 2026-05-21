@@ -36,6 +36,8 @@ class AuthService:
     def _generate_access_token(self, user_id: int) -> str:
         payload = {
             "user_id": user_id,
+            "sub": f"user:{user_id}",
+            "role": "user",
             "type": "access",
             "exp": datetime.utcnow()
             + timedelta(minutes=settings.jwt_access_token_expire_minutes),

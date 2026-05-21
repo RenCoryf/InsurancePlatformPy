@@ -109,8 +109,10 @@ Four new tables. All additive — `users` and `refresh_tokens` are untouched.
 Lazy-created by `/internal/auth/ws-validate`:
 - User-side: insert if `(user_id, type)` row is missing. UNIQUE constraint
   serializes concurrent first-connects.
-- Support-side: the row must already exist; if not, 404. Support cannot
-  fabricate `chat_id`s.
+- Support-side: the row must already exist; if not, 401 (matches the Go
+  `pyclient.Validate` contract — 401/403 are the only auth-rejection
+  codes it maps to `ErrUnauthorized`). Support cannot fabricate
+  `chat_id`s.
 
 ### `messages`
 
@@ -174,7 +176,7 @@ Behavior:
 4. Validate `chat_type` ∈ {`main`, `bonus`} → 400 (`code=validation`).
 5. Resolve `chat_id`:
    - User: ignore `chat_id_hint`. `INSERT … ON CONFLICT (owner_user_id, type) DO NOTHING RETURNING id`; if empty, `SELECT id WHERE owner_user_id=? AND type=?`.
-   - Support: `chat_id_hint` required and must be UUID. `SELECT … WHERE id=?`; 404 if missing. Verify `type` matches → 400 if mismatch.
+   - Support: `chat_id_hint` required and must be UUID. `SELECT … WHERE id=?`; 401 if missing (Go's `pyclient` only treats 401/403 as `ErrUnauthorized`; any other 4xx becomes a 5xx in the gateway). Verify `type` matches → 400 if mismatch.
 6. Return:
 ```json
 { "user_id": "user:42" | "support:7", "role": "user" | "support", "chat_id": "<uuid>" }
@@ -489,7 +491,7 @@ Required cases (the minimum set before declaring complete):
 
 1. `ws_validate_user_creates_main_chat_lazily`
 2. `ws_validate_user_main_chat_idempotent` (concurrent requests, no UNIQUE violation surfaced)
-3. `ws_validate_support_with_unknown_chat_id_404`
+3. `ws_validate_support_with_unknown_chat_id_401`
 4. `ws_validate_support_chat_type_mismatch_400`
 5. `persist_message_idempotent_on_client_msg_id` (same row, same response, no `last_message_at` re-bump)
 6. `persist_message_file_not_in_chat_400`

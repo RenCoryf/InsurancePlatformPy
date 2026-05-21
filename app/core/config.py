@@ -22,6 +22,21 @@ class Settings(BaseSettings):
     referral_accrual_delay_days: int = 15
     referral_link_base_url: str = "https://example.com/r/"
 
+    # Chat / file / admin / MinIO config (added 2026-05-21)
+    environment: str = "development"  # set to "production" to enable startup secret guards
+    internal_secret: str = "dev-internal-secret-change-me"
+    max_message_bytes: int = 64_000
+    max_file_bytes: int = 25_000_000
+
+    minio_endpoint: str = "minio:9000"
+    minio_access_key: str = "minioadmin"
+    minio_secret_key: str = "minioadmin"
+    minio_bucket: str = "chat-files"
+    minio_secure: bool = False
+
+    admin_login: str = "admin"
+    admin_password: str = "admin"
+
     @property
     def database_url(self) -> str:
         return (
