@@ -7,6 +7,7 @@ def test_chat_config_defaults():
     assert settings.max_file_bytes == 25_000_000
     assert settings.minio_bucket == "chat-files"
     assert settings.minio_secure is False
+    assert settings.environment == "development"
 
 
 def test_chat_config_secrets_have_defaults_for_dev():

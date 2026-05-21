@@ -14,8 +14,31 @@ from app.core.minio_client import build_minio_client, ensure_bucket
 from app.services.errors import ChatError
 
 
+def _check_production_defaults() -> None:
+    """Abort startup if production is running on shipped dev defaults.
+
+    Both INTERNAL_SECRET and ADMIN_PASSWORD have placeholder values in
+    `app/core/config.py` so the dev stack boots without a .env file. A
+    misconfigured prod deploy could land with those defaults intact —
+    that's an open admin endpoint and a forged Go-gateway secret. Fail
+    loudly instead.
+    """
+    if settings.environment != "production":
+        return
+    bad = []
+    if settings.internal_secret == "dev-internal-secret-change-me":
+        bad.append("INTERNAL_SECRET")
+    if settings.admin_password == "admin":
+        bad.append("ADMIN_PASSWORD")
+    if bad:
+        raise RuntimeError(
+            f"Refusing to start in production with default values for: {', '.join(bad)}"
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    _check_production_defaults()
     app.state.redis = redis.Redis(
         host="localhost",
         port=6379,

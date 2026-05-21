@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     referral_link_base_url: str = "https://example.com/r/"
 
     # Chat / file / admin / MinIO config (added 2026-05-21)
+    environment: str = "development"  # set to "production" to enable startup secret guards
     internal_secret: str = "dev-internal-secret-change-me"
     max_message_bytes: int = 64_000
     max_file_bytes: int = 25_000_000
