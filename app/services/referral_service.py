@@ -42,11 +42,6 @@ class ReferralService:
     async def accrue_for_source(
         self, source_user: User, base_amount: Decimal
     ) -> list[ReferralAccrual]:
-        """Создаёт начисления апплайну ``source_user`` за событие на сумму ``base_amount``.
-
-        Возвращает список созданных записей ``ReferralAccrual`` (только с amount > 0).
-        Сами начисления идут в ``pending_balance`` получателей.
-        """
         if base_amount <= 0:
             raise ValueError("base_amount must be positive")
 
@@ -67,7 +62,6 @@ class ReferralService:
             percent = self.LEVEL_PERCENTS[level_idx]
             amount = self._quantize(base_amount * percent)
 
-            # Владелец (корень дерева) не получает реферальных начислений.
             is_owner = referrer.referrer_id is None
             if amount > 0 and not is_owner:
                 accrual = ReferralAccrual(
@@ -96,10 +90,6 @@ class ReferralService:
     async def process_matured_accruals(
         self, user_id: int | None = None
     ) -> list[ReferralAccrual]:
-        """Переносит созревшие начисления из pending_balance в balance.
-
-        Если задан ``user_id`` — только для конкретного получателя.
-        """
         now = datetime.utcnow()
         stmt = select(ReferralAccrual).where(
             ReferralAccrual.status == ReferralAccrual.STATUS_PENDING,
@@ -141,7 +131,6 @@ class ReferralService:
         return matured
 
     async def get_structure_summary(self, user: User) -> dict:
-        """Сводка по структуре: количество приглашённых на каждом из 5 уровней."""
         levels: list[dict] = []
         total = 0
         current_ids: list[int] = [user.id]
@@ -165,7 +154,6 @@ class ReferralService:
         }
 
     async def get_structure_list(self, user: User) -> dict[int, list[User]]:
-        """Список членов структуры по уровням (до 5 включительно)."""
         levels: dict[int, list[User]] = {}
         current_ids: list[int] = [user.id]
         for level in range(1, self.MAX_LEVELS + 1):
