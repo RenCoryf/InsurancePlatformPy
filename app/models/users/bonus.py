@@ -4,7 +4,7 @@ from decimal import Decimal
 from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.models.base import Base, int_pk
+from app.models.base import Base, int_pk, created_at
 
 
 class BonusWithdrawalRequest(Base):
@@ -31,7 +31,5 @@ class BonusWithdrawalRequest(Base):
         String(16), nullable=False, default=STATUS_PENDING, index=True
     )
     comment: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, nullable=False
-    )
+    created_at: Mapped[created_at]
     processed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
