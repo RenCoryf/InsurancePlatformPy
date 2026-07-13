@@ -36,6 +36,7 @@ from app.models.users.entities import User
 from app.models.users.refresh_token import RefreshToken
 from app.repositories.support_agent_repository import SupportAgentRepository
 from app.services.audit_service import AuditService
+from app.services.referral_service import ReferralService
 from app.services.settings_service import SettingsService
 from app.services.sms_service import SMSService_SMSC
 
@@ -281,6 +282,7 @@ async def block_user(
     payload: BlockUserRequest,
     session: AsyncSession = Depends(get_async_session),
     admin: SubjectRow = Depends(get_current_admin),
+    redis=Depends(get_redis),
 ) -> UserStatusResponse:
     user = await _get_user_or_404(session, user_id)
     if user.status == User.STATUS_DELETED:
@@ -307,6 +309,7 @@ async def block_user(
         comment=payload.comment,
     )
     await session.commit()
+    await ReferralService(session, redis).invalidate_upline_cache(user.id)
     await session.refresh(user)
     return UserStatusResponse.model_validate(user)
 
@@ -316,6 +319,7 @@ async def unblock_user(
     user_id: int,
     session: AsyncSession = Depends(get_async_session),
     admin: SubjectRow = Depends(get_current_admin),
+    redis=Depends(get_redis),
 ) -> UserStatusResponse:
     user = await _get_user_or_404(session, user_id)
     if user.status != User.STATUS_BLOCKED:
@@ -338,6 +342,7 @@ async def unblock_user(
         new_value={"status": User.STATUS_ACTIVE},
     )
     await session.commit()
+    await ReferralService(session, redis).invalidate_upline_cache(user.id)
     await session.refresh(user)
     return UserStatusResponse.model_validate(user)
 
@@ -371,6 +376,7 @@ async def delete_user(
     confirm_token: str | None = Query(default=None),
     session: AsyncSession = Depends(get_async_session),
     admin: SubjectRow = Depends(get_current_admin),
+    redis=Depends(get_redis),
 ):
     """Удаление пользователя с двойным подтверждением.
 
@@ -408,6 +414,7 @@ async def delete_user(
         new_value={"status": User.STATUS_DELETED, "anonymized": True},
     )
     await session.commit()
+    await ReferralService(session, redis).invalidate_upline_cache(user.id)
     await session.refresh(user)
     return UserStatusResponse.model_validate(user)
 

@@ -18,6 +18,8 @@ from app.models.users.dto import (
 from app.models.users.entities import User
 from app.models.users.refresh_token import RefreshToken
 from app.services.code_generator_service import CodeManager
+from app.services.notification_service import NotificationService
+from app.services.referral_service import ReferralService
 from app.services.errors import (
     ReferralLinkInvalidError,
     SmsRateLimitError,
@@ -187,6 +189,16 @@ class AuthService:
         self._session.add(user)
         await self._session.commit()
         await self._session.refresh(user)
+
+        # Приветственное SMS уходит через очередь (фоновая задача sms_job).
+        await NotificationService(self._session).send(
+            user.id, "registration_welcome", {"referral_code": user.referral_code}
+        )
+        await self._session.commit()
+        # Дерево изменилось — сбрасываем кеш цепочки нового пользователя.
+        await ReferralService(self._session, self._redis).invalidate_upline_cache(
+            user.id
+        )
 
         access_token = self._generate_access_token(user.id)
         refresh_token = await self._create_refresh_token(user.id)

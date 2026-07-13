@@ -27,6 +27,7 @@ import app.models.tables.file  # noqa: F401
 import app.models.tables.support_agent  # noqa: F401
 import app.models.settings  # noqa: F401   (PlatformSettings)
 import app.models.audit_log  # noqa: F401   (AuditLog)
+import app.models.sms_notification  # noqa: F401   (SMSNotification)
 
 
 config = context.config

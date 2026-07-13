@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 import dotenv
 import redis.asyncio as redis
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -13,6 +14,8 @@ from app.api.routers.internal import router as internal_router
 from app.core.config import settings
 from app.core.minio_client import build_minio_client, ensure_bucket
 from app.services.errors import ChatError, ReferralLinkInvalidError
+from app.tasks.accrual_job import process_matured_accruals_job
+from app.tasks.sms_job import send_pending_sms_job
 
 
 def _check_production_defaults() -> None:
@@ -56,7 +59,26 @@ async def lifespan(app: FastAPI):
     except Exception:
         # MinIO may be unreachable in test/dev environments; tests inject a fake client.
         pass
+    scheduler: AsyncIOScheduler | None = None
+    if settings.scheduler_enabled:
+        scheduler = AsyncIOScheduler(timezone="UTC")
+        scheduler.add_job(
+            process_matured_accruals_job,
+            "interval",
+            hours=1,
+            id="process_matured_accruals",
+        )
+        scheduler.add_job(
+            send_pending_sms_job,
+            "interval",
+            minutes=1,
+            id="send_pending_sms",
+        )
+        scheduler.start()
+    app.state.scheduler = scheduler
     yield
+    if scheduler is not None:
+        scheduler.shutdown(wait=False)
     await app.state.redis.close()
 
 

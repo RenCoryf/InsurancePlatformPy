@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     admin_login: str = "admin"
     admin_password: str = "admin"
 
+    # Фоновые задачи (APScheduler): начисление созревших бонусов, отправка SMS
+    scheduler_enabled: bool = True
+
     # Redis (OTP-коды, кеш настроек, лимиты SMS)
     redis_host: str = "localhost"
     redis_port: int = 6379

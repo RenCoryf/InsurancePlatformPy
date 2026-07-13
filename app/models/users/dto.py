@@ -83,9 +83,11 @@ class StructureSummaryResponse(BaseModel):
 
 class StructureMemberInfo(BaseModel):
     id: int
-    full_name: str
-    phone: str | None
+    # Приватность: имя + первая буква фамилии («Иван П.»), без телефона.
+    name: str
     joined_at: datetime
+    structure_count: int
+    status: str
 
 
 class StructureListResponse(BaseModel):

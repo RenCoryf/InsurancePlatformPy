@@ -21,6 +21,7 @@ class AuditLog(Base):
     ACTION_USER_DELETE = "user_delete"
     ACTION_BONUS_MANUAL_CREDIT = "bonus_manual_credit"
     ACTION_BONUS_MANUAL_DEBIT = "bonus_manual_debit"
+    ACTION_BONUS_ACCRUAL_AUTO = "bonus_accrual_auto"
     ACTION_DEAL_AMOUNT_CHANGE = "deal_amount_change"
     ACTION_PERMISSION_CHANGE = "permission_change"
     ACTION_MANAGER_CREATE = "manager_create"
@@ -32,6 +33,7 @@ class AuditLog(Base):
         ACTION_USER_DELETE,
         ACTION_BONUS_MANUAL_CREDIT,
         ACTION_BONUS_MANUAL_DEBIT,
+        ACTION_BONUS_ACCRUAL_AUTO,
         ACTION_DEAL_AMOUNT_CHANGE,
         ACTION_PERMISSION_CHANGE,
         ACTION_MANAGER_CREATE,
