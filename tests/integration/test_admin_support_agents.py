@@ -1,20 +1,12 @@
-import base64
-
 import pytest
 
-from app.core.config import settings
-
-
-def _basic(monkeypatch) -> dict[str, str]:
-    monkeypatch.setattr(settings, "admin_login", "admin")
-    monkeypatch.setattr(settings, "admin_password", "secret")
-    creds = base64.b64encode(b"admin:secret").decode()
-    return {"Authorization": f"Basic {creds}"}
+from app.models.tables.support_agent import SupportAgent
+from tests.conftest import _create_agent, make_support_jwt
 
 
 @pytest.mark.asyncio
-async def test_create_list_update_delete_flow(client, monkeypatch):
-    headers = _basic(monkeypatch)
+async def test_create_list_update_delete_flow(client, admin_headers):
+    headers = admin_headers
 
     # Create
     r = await client.post(
@@ -26,6 +18,7 @@ async def test_create_list_update_delete_flow(client, monkeypatch):
     created = r.json()
     assert created["login"] == "alice"
     assert created["is_active"] is True
+    assert created["role"] == "manager"
     aid = created["id"]
 
     # Duplicate login -> 409
@@ -62,3 +55,25 @@ async def test_create_list_update_delete_flow(client, monkeypatch):
 async def test_admin_endpoint_rejects_no_auth(client):
     r = await client.get("/api/v1/admin/support-agents/")
     assert r.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_admin_endpoint_rejects_manager_role(client, db_session):
+    manager = await _create_agent(db_session, login="just-manager", role=SupportAgent.ROLE_MANAGER)
+    headers = {"Authorization": f"Bearer {make_support_jwt(manager.id)}"}
+    r = await client.get("/api/v1/admin/support-agents/", headers=headers)
+    assert r.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_cannot_deactivate_owner(client, db_session, admin_headers, owner_agent):
+    r = await client.patch(
+        f"/api/v1/admin/support-agents/{owner_agent.id}/",
+        json={"is_active": False},
+        headers=admin_headers,
+    )
+    assert r.status_code == 409
+    r2 = await client.delete(
+        f"/api/v1/admin/support-agents/{owner_agent.id}/", headers=admin_headers
+    )
+    assert r2.status_code == 409

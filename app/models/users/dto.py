@@ -34,14 +34,15 @@ class UserRegisterRequest(BaseModel):
 
 class UserResponse(BaseModel):
     id: int
-    email: str
-    phone: str
+    email: str | None
+    phone: str | None
     first_name: str | None
     last_name: str | None
     patronymic: str | None
     balance: Decimal = Decimal("0")
     pending_balance: Decimal = Decimal("0")
     referral_code: str | None = None
+    status: str = "active"
 
     class Config:
         from_attributes = True
@@ -83,7 +84,7 @@ class StructureSummaryResponse(BaseModel):
 class StructureMemberInfo(BaseModel):
     id: int
     full_name: str
-    phone: str
+    phone: str | None
     joined_at: datetime
 
 

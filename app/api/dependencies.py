@@ -38,4 +38,12 @@ async def get_current_user(
     if user is None:
         raise credentials_exception
 
+    if user.status != User.STATUS_ACTIVE:
+        detail = (
+            "Аккаунт удалён"
+            if user.status == User.STATUS_DELETED
+            else "Аккаунт заблокирован"
+        )
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
+
     return user

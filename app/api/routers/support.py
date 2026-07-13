@@ -2,6 +2,7 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from passlib.context import CryptContext
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,11 +10,18 @@ from app.api.deps.subject_auth import SubjectRow
 from app.api.deps.support_auth import get_current_support
 from app.core.database import get_async_session
 from app.models.dto.chat import OwnerInfo, SupportChatItem, SupportChatList
-from app.models.dto.support_agent import SupportLoginRequest, SupportTokenResponse
+from app.models.dto.support_agent import (
+    InviteAcceptRequest,
+    SupportLoginRequest,
+    SupportTokenResponse,
+)
+from app.models.tables.support_agent import SupportAgent
 from app.models.users.entities import User
 from app.repositories.chat_repository import ChatRepository
 from app.services.support_auth_service import SupportAuthService
 
+
+_pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 router = APIRouter(prefix="/support", tags=["support"])
 
@@ -28,6 +36,28 @@ async def support_login(
         return await svc.login(payload.login, payload.password)
     except ValueError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid credentials")
+
+
+@router.post("/invite/accept/", status_code=status.HTTP_200_OK)
+async def accept_invite(
+    payload: InviteAcceptRequest,
+    session: AsyncSession = Depends(get_async_session),
+) -> dict[str, str]:
+    """Установка пароля по одноразовому SMS-инвайту менеджера."""
+    row = await session.execute(
+        select(SupportAgent).where(SupportAgent.invite_token == payload.token)
+    )
+    agent = row.scalar_one_or_none()
+    if agent is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="invite not found")
+    if agent.invite_expires_at is None or agent.invite_expires_at < datetime.utcnow():
+        raise HTTPException(status_code=status.HTTP_410_GONE, detail="invite expired")
+
+    agent.password_hash = _pwd.hash(payload.password)
+    agent.invite_token = None  # одноразовый: повторное использование невозможно
+    agent.invite_expires_at = None
+    await session.commit()
+    return {"message": "Пароль установлен, можно войти", "login": agent.login}
 
 
 @router.get("/chats/", response_model=SupportChatList)

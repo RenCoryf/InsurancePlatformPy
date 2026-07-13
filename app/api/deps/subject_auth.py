@@ -83,6 +83,11 @@ async def get_current_subject(
         user = row.scalar_one_or_none()
         if user is None:
             raise _credentials_exception("user not found")
+        if user.status != User.STATUS_ACTIVE:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Аккаунт удалён" if user.status == User.STATUS_DELETED else "Аккаунт заблокирован",
+            )
         return SubjectRow(subject=subject, user=user)
     else:
         row = await session.execute(select(SupportAgent).where(SupportAgent.id == subject.id))

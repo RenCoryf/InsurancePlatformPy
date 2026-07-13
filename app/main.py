@@ -12,7 +12,7 @@ from app.api.main_router import api_router
 from app.api.routers.internal import router as internal_router
 from app.core.config import settings
 from app.core.minio_client import build_minio_client, ensure_bucket
-from app.services.errors import ChatError
+from app.services.errors import ChatError, ReferralLinkInvalidError
 
 
 def _check_production_defaults() -> None:
@@ -44,8 +44,10 @@ async def lifespan(app: FastAPI):
     dotenv.load_dotenv()
     _check_production_defaults()
     app.state.redis = redis.Redis(
-        host="localhost",
-        port=6379,
+        host=settings.redis_host,
+        port=settings.redis_port,
+        password=settings.redis_password,
+        db=settings.redis_db,
         decode_responses=True,
     )
     app.state.minio = build_minio_client()
@@ -89,6 +91,13 @@ async def _internal_validation_handler(request: Request, exc: RequestValidationE
 @app.exception_handler(ChatError)
 async def _chat_error_handler(request: Request, exc: ChatError) -> JSONResponse:
     return JSONResponse(status_code=exc.http_status, content={"code": exc.code, "reason": exc.reason})
+
+
+@app.exception_handler(ReferralLinkInvalidError)
+async def _referral_invalid_handler(request: Request, exc: ReferralLinkInvalidError) -> JSONResponse:
+    """Регистрация только по действующей реферальной ссылке: несуществующий код
+    или заблокированный/удалённый реферер → 422 с фиксированным телом."""
+    return JSONResponse(status_code=422, content={"error": exc.message})
 
 
 if __name__ == "__main__":

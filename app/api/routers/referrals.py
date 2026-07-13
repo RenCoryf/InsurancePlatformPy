@@ -22,7 +22,7 @@ router = APIRouter(prefix="/referrals", tags=["referrals"])
 def _full_name(user: User) -> str:
     parts = [user.last_name, user.first_name, user.patronymic]
     name = " ".join(p for p in parts if p)
-    return name or user.phone
+    return name or user.phone or f"Пользователь #{user.id}"
 
 
 @router.get("/me/balance/", response_model=BalanceResponse)
