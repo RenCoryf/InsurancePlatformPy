@@ -32,9 +32,15 @@ _INT_FIELDS = ("bonus_accrual_delay_days", "sms_daily_limit_per_user")
 _BOOL_FIELDS = ("root_referral_active",)
 _STR_FIELDS = ("blocked_user_level_rule", "sms_provider", "sms_sender_id")
 _NULLABLE_STR_FIELDS = ("root_referral_code",)
+_DICT_FIELDS = ("sms_templates",)
 
 EDITABLE_FIELDS = (
-    _DECIMAL_FIELDS + _INT_FIELDS + _BOOL_FIELDS + _STR_FIELDS + _NULLABLE_STR_FIELDS
+    _DECIMAL_FIELDS
+    + _INT_FIELDS
+    + _BOOL_FIELDS
+    + _STR_FIELDS
+    + _NULLABLE_STR_FIELDS
+    + _DICT_FIELDS
 )
 
 
@@ -51,6 +57,8 @@ class SettingsService:
             out[f] = str(getattr(row, f))
         for f in _INT_FIELDS + _BOOL_FIELDS + _STR_FIELDS + _NULLABLE_STR_FIELDS:
             out[f] = getattr(row, f)
+        for f in _DICT_FIELDS:
+            out[f] = dict(getattr(row, f) or {})
         return out
 
     @staticmethod
@@ -109,6 +117,13 @@ class SettingsService:
             raise ValueError(
                 f"blocked_user_level_rule must be one of {PlatformSettings.BLOCKED_RULES}"
             )
+
+        templates = changes.get("sms_templates")
+        if templates is not None:
+            if not isinstance(templates, dict) or not all(
+                isinstance(k, str) and isinstance(v, str) for k, v in templates.items()
+            ):
+                raise ValueError("sms_templates must be a dict of str -> str")
 
         row = await self.get()
         for field, value in changes.items():

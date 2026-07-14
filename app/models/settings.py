@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Integer, Numeric, String
+from sqlalchemy import JSON, Boolean, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin, int_pk
@@ -55,6 +55,11 @@ class PlatformSettings(Base, TimestampMixin):
     )
     sms_daily_limit_per_user: Mapped[int] = mapped_column(
         Integer, nullable=False, default=5, server_default="5"
+    )
+    # Переопределения SMS-шаблонов ({имя: текст}); дефолты живут в
+    # app.services.notification_service.DEFAULT_SMS_TEMPLATES.
+    sms_templates: Mapped[dict] = mapped_column(
+        JSON, nullable=False, default=dict, server_default="{}"
     )
 
     root_referral_code: Mapped[str | None] = mapped_column(String(32), nullable=True)

@@ -36,6 +36,7 @@ from app.models.users.entities import User
 from app.models.users.refresh_token import RefreshToken
 from app.repositories.support_agent_repository import SupportAgentRepository
 from app.services.audit_service import AuditService
+from app.services.notification_service import NotificationService
 from app.services.referral_service import ReferralService
 from app.services.settings_service import SettingsService
 from app.services.sms_service import SMSService_SMSC
@@ -65,12 +66,15 @@ async def _revoke_user_refresh_tokens(session: AsyncSession, user_id: int) -> No
     )
 
 
-async def _send_invite_sms(phone: str, invite_link: str) -> None:
+async def _send_invite_sms(session: AsyncSession, phone: str, invite_link: str) -> None:
     """Отправка SMS-приглашения. Ошибка доставки не срывает создание —
-    ссылку можно передать вручную, она есть в ответе API."""
-    message = (
-        f"Вас приглашают в систему. Перейдите по ссылке: {invite_link} "
-        f"для установки пароля"
+    ссылку можно передать вручную, она есть в ответе API.
+
+    Менеджер не привязан к User, поэтому отправка идёт напрямую через
+    SMSService, минуя очередь; текст — из шаблона ``manager_invite``.
+    """
+    message = await NotificationService(session).render_template(
+        "manager_invite", {"link": invite_link}
     )
     if not (settings.smsc_login and settings.smsc_password):
         logger.info("SMSC is not configured; invite for %s: %s", phone, invite_link)
@@ -188,7 +192,7 @@ async def create_manager_with_invite(
     await session.refresh(agent)
 
     invite_link = f"{settings.invite_link_base_url.rstrip('/')}/invite/{invite_token}"
-    await _send_invite_sms(agent.phone, invite_link)
+    await _send_invite_sms(session, agent.phone, invite_link)
 
     return ManagerInviteResponse(
         agent=_agent_response(agent),

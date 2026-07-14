@@ -116,10 +116,26 @@ class AuthService:
             raise SmsRateLimitError(limit)
 
     async def request_sms_code(self, phone: str) -> None:
+        """Выслать код подтверждения. Текст — из SMS-шаблонов настроек:
+        ``login_code`` для существующего пользователя, ``registration_code``
+        для нового номера. Отправка синхронная (мимо очереди): код живёт
+        10 минут и ждать фоновую задачу нельзя.
+        """
         code_manager = self._require_code_manager()
         await self._enforce_sms_daily_limit(phone)
 
         code = await code_manager.new_code(phone)
+
+        existing = await self._session.execute(
+            select(User).where(User.phone == phone)
+        )
+        template = (
+            "login_code" if existing.scalar_one_or_none() is not None
+            else "registration_code"
+        )
+        text = await NotificationService(self._session, self._redis).render_template(
+            template, {"code": code}
+        )
 
         if settings.smsc_login and settings.smsc_password:
             platform = await self._settings_service.get_values()
@@ -130,7 +146,7 @@ class AuthService:
                 sender=platform.get("sms_sender_id") or None,
             )
             try:
-                await sms_service.send_sms(phone, code)
+                await sms_service.send_message(phone, text)
             except Exception:
                 # Код уже лежит в Redis; не раскрываем его в ошибке.
                 logger.exception("Failed to send SMS to %s", phone)

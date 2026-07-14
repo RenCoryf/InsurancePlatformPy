@@ -1,7 +1,11 @@
 from fastapi import APIRouter
 
 from app.api.routers.admin import router as admin_router
+from app.api.routers.admin_audit_log import router as admin_audit_log_router
+from app.api.routers.admin_managers import router as admin_managers_router
 from app.api.routers.admin_partners import router as admin_partners_router
+from app.api.routers.admin_reports import router as admin_reports_router
+from app.api.routers.admin_users import router as admin_users_router
 from app.api.routers.applications import router as applications_router
 from app.api.routers.auth import router as auth_router
 from app.api.routers.bonuses import router as bonuses_router
@@ -31,6 +35,10 @@ api_router.include_router(chats_router)
 api_router.include_router(files_router)
 api_router.include_router(reports_router)
 api_router.include_router(admin_router)
+api_router.include_router(admin_users_router)
+api_router.include_router(admin_managers_router)
+api_router.include_router(admin_reports_router)
+api_router.include_router(admin_audit_log_router)
 api_router.include_router(admin_partners_router)
 api_router.include_router(support_router)
 api_router.include_router(support_applications_router)

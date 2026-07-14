@@ -181,6 +181,14 @@ class CertificateService:
             cert.bonus_chat_id, f"Статус изменён: {old_status} → {new_status}"
         )
 
+        if new_status == CertificateRequest.STATUS_CONFIRMING:
+            partner = await self._session.get(Partner, cert.partner_id)
+            await NotificationService(self._session).send(
+                cert.user_id,
+                "certificate_confirming",
+                {"partner": partner.name if partner else ""},
+            )
+
         await AuditService(self._session).log(
             performed_by_type=AuditLog.BY_MANAGER,
             performed_by_id=manager_id,

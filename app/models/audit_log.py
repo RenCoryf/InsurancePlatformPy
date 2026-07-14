@@ -36,6 +36,8 @@ class AuditLog(Base):
     ACTION_PARTNER_UPDATE = "partner_update"
     ACTION_PERMISSION_CHANGE = "permission_change"
     ACTION_MANAGER_CREATE = "manager_create"
+    ACTION_MANAGER_BLOCK = "manager_block"
+    ACTION_MANAGER_UNBLOCK = "manager_unblock"
     ACTION_ADMIN_CREATE = "admin_create"
     ACTION_SETTINGS_UPDATE = "settings_update"
     ACTIONS = (
@@ -58,6 +60,8 @@ class AuditLog(Base):
         ACTION_PARTNER_UPDATE,
         ACTION_PERMISSION_CHANGE,
         ACTION_MANAGER_CREATE,
+        ACTION_MANAGER_BLOCK,
+        ACTION_MANAGER_UNBLOCK,
         ACTION_ADMIN_CREATE,
         ACTION_SETTINGS_UPDATE,
     )
