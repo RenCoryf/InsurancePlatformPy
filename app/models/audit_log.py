@@ -14,7 +14,8 @@ class AuditLog(Base):
     BY_ADMIN = "admin"
     BY_MANAGER = "manager"
     BY_SYSTEM = "system"
-    PERFORMED_BY_TYPES = (BY_ADMIN, BY_MANAGER, BY_SYSTEM)
+    BY_USER = "user"
+    PERFORMED_BY_TYPES = (BY_ADMIN, BY_MANAGER, BY_SYSTEM, BY_USER)
 
     ACTION_USER_BLOCK = "user_block"
     ACTION_USER_UNBLOCK = "user_unblock"
@@ -22,7 +23,17 @@ class AuditLog(Base):
     ACTION_BONUS_MANUAL_CREDIT = "bonus_manual_credit"
     ACTION_BONUS_MANUAL_DEBIT = "bonus_manual_debit"
     ACTION_BONUS_ACCRUAL_AUTO = "bonus_accrual_auto"
+    ACTION_APPLICATION_CREATE = "application_create"
+    ACTION_APPLICATION_STATUS_CHANGE = "application_status_change"
+    ACTION_DEAL_CREATE = "deal_create"
+    ACTION_DEAL_STATUS_CHANGE = "deal_status_change"
     ACTION_DEAL_AMOUNT_CHANGE = "deal_amount_change"
+    ACTION_CERTIFICATE_REQUEST_CREATE = "certificate_request_create"
+    ACTION_CERTIFICATE_STATUS_CHANGE = "certificate_status_change"
+    ACTION_CERTIFICATE_COMPLETE = "certificate_complete"
+    ACTION_CERTIFICATE_CANCEL = "certificate_cancel"
+    ACTION_PARTNER_CREATE = "partner_create"
+    ACTION_PARTNER_UPDATE = "partner_update"
     ACTION_PERMISSION_CHANGE = "permission_change"
     ACTION_MANAGER_CREATE = "manager_create"
     ACTION_ADMIN_CREATE = "admin_create"
@@ -34,7 +45,17 @@ class AuditLog(Base):
         ACTION_BONUS_MANUAL_CREDIT,
         ACTION_BONUS_MANUAL_DEBIT,
         ACTION_BONUS_ACCRUAL_AUTO,
+        ACTION_APPLICATION_CREATE,
+        ACTION_APPLICATION_STATUS_CHANGE,
+        ACTION_DEAL_CREATE,
+        ACTION_DEAL_STATUS_CHANGE,
         ACTION_DEAL_AMOUNT_CHANGE,
+        ACTION_CERTIFICATE_REQUEST_CREATE,
+        ACTION_CERTIFICATE_STATUS_CHANGE,
+        ACTION_CERTIFICATE_COMPLETE,
+        ACTION_CERTIFICATE_CANCEL,
+        ACTION_PARTNER_CREATE,
+        ACTION_PARTNER_UPDATE,
         ACTION_PERMISSION_CHANGE,
         ACTION_MANAGER_CREATE,
         ACTION_ADMIN_CREATE,
@@ -42,15 +63,21 @@ class AuditLog(Base):
     )
 
     TARGET_USER = "user"
+    TARGET_APPLICATION = "application"
     TARGET_DEAL = "deal"
     TARGET_BONUS = "bonus"
+    TARGET_CERTIFICATE = "certificate"
+    TARGET_PARTNER = "partner"
     TARGET_MANAGER = "manager"
     TARGET_ADMIN = "admin"
     TARGET_SETTINGS = "settings"
     TARGET_TYPES = (
         TARGET_USER,
+        TARGET_APPLICATION,
         TARGET_DEAL,
         TARGET_BONUS,
+        TARGET_CERTIFICATE,
+        TARGET_PARTNER,
         TARGET_MANAGER,
         TARGET_ADMIN,
         TARGET_SETTINGS,

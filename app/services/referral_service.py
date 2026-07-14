@@ -111,17 +111,30 @@ class ReferralService:
         ]
 
     async def accrue_for_source(
-        self, source_user: User, base_amount: Decimal
+        self,
+        source_user: User,
+        base_amount: Decimal,
+        *,
+        available_at: datetime | None = None,
+        deal_id=None,
+        commit: bool = True,
     ) -> list[ReferralAccrual]:
+        """Начислить бонусы аплайну источника.
+
+        ``available_at``/``deal_id`` задаются при начислении по сделке
+        (дата доступности — ``deals.accrual_date``). ``commit=False`` —
+        для вызова внутри чужой транзакции (например, DealService).
+        """
         if base_amount <= 0:
             raise ValueError("base_amount must be positive")
 
         platform = await self._settings_service.get_values()
         percents = self._level_percents(platform)
         blocked_rule = platform["blocked_user_level_rule"]
-        available_at = datetime.utcnow() + timedelta(
-            days=int(platform["bonus_accrual_delay_days"])
-        )
+        if available_at is None:
+            available_at = datetime.utcnow() + timedelta(
+                days=int(platform["bonus_accrual_delay_days"])
+            )
 
         accruals: list[ReferralAccrual] = []
         upline_ids = await self.get_upline_ids(source_user)
@@ -144,6 +157,7 @@ class ReferralService:
                 accrual = ReferralAccrual(
                     user_id=referrer.id,
                     source_user_id=source_user.id,
+                    deal_id=deal_id,
                     level=level,
                     percent=percent,
                     base_amount=self._quantize(base_amount),
@@ -157,9 +171,39 @@ class ReferralService:
                 )
                 accruals.append(accrual)
 
+        if not commit:
+            await self._session.flush()
+            return accruals
+
         await self._session.commit()
         for accrual in accruals:
             await self._session.refresh(accrual)
+        return accruals
+
+    async def cancel_pending_for_deal(self, deal_id) -> list[ReferralAccrual]:
+        """Отменить pending-начисления по сделке и вернуть pending_balance.
+
+        Уже зачисленные (credited) начисления не трогаем. Без commit —
+        фиксируется транзакцией вызывающего кода (DealService).
+        """
+        result = await self._session.execute(
+            select(ReferralAccrual).where(
+                ReferralAccrual.deal_id == deal_id,
+                ReferralAccrual.status == ReferralAccrual.STATUS_PENDING,
+            )
+        )
+        accruals = list(result.scalars().all())
+        for accrual in accruals:
+            accrual.status = ReferralAccrual.STATUS_CANCELLED
+            user = await self._session.get(User, accrual.user_id)
+            if user is None:
+                continue
+            user.pending_balance = self._quantize(
+                (user.pending_balance or Decimal("0")) - accrual.amount
+            )
+            if user.pending_balance < 0:
+                user.pending_balance = Decimal("0")
+        await self._session.flush()
         return accruals
 
     async def process_matured_accruals(

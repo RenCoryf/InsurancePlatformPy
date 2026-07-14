@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,11 +13,15 @@ class ChatRepository:
         self._session = session
 
     async def get_or_create_for_user(self, *, owner_user_id: int, chat_type: str) -> Chat:
-        """Idempotent under the UNIQUE(owner_user_id, type) constraint."""
+        """Idempotent under the partial UNIQUE(owner_user_id, type) index
+        (main/bonus only — insurance chats are one per application)."""
         stmt = (
             pg_insert(Chat)
             .values(owner_user_id=owner_user_id, type=chat_type)
-            .on_conflict_do_nothing(index_elements=["owner_user_id", "type"])
+            .on_conflict_do_nothing(
+                index_elements=["owner_user_id", "type"],
+                index_where=text("type IN ('main', 'bonus')"),
+            )
             .returning(Chat.id)
         )
         result = await self._session.execute(stmt)

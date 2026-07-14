@@ -19,6 +19,9 @@ SMS_TEMPLATES: dict[str, str] = {
     "registration_welcome": "Добро пожаловать! Ваш реферальный код: {referral_code}",
     "bonus_accrued": "Начислено {amount} бонусов",
     "application_status_changed": "Статус заявки #{app_id}: {status}",
+    "certificate_completed": "Сертификат {partner} на {amount} бонусов готов! Файл — в бонусном чате",
+    "certificate_cancelled": "Заявка на сертификат {partner} отменена: {reason}",
+    "bonus_manual_credit": "Начислено {amount} бонусов: {reason}",
 }
 
 

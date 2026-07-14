@@ -28,6 +28,10 @@ import app.models.tables.support_agent  # noqa: F401
 import app.models.settings  # noqa: F401   (PlatformSettings)
 import app.models.audit_log  # noqa: F401   (AuditLog)
 import app.models.sms_notification  # noqa: F401   (SMSNotification)
+import app.models.applications  # noqa: F401   (Application, ApplicationStatusEvent)
+import app.models.deals  # noqa: F401   (Deal, DealStatusEvent)
+import app.models.partners  # noqa: F401   (Partner)
+import app.models.certificates  # noqa: F401   (CertificateRequest, CertificateStatusEvent)
 
 
 config = context.config

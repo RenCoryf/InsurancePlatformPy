@@ -52,8 +52,11 @@ def test_chat_columns():
         "id", "owner_user_id", "type", "created_at", "last_message_at",
     }
     assert Chat.__tablename__ == "chats"
-    constraints = {c.name for c in Chat.__table__.constraints if c.name}
-    assert "uq_chats_owner_type" in constraints
+    # main/bonus уникальны на пользователя через частичный индекс
+    # (insurance-чатов много — по одному на заявку).
+    indexes = {i.name: i for i in Chat.__table__.indexes}
+    assert "uq_chats_owner_type" in indexes
+    assert indexes["uq_chats_owner_type"].unique
 
 
 def test_file_columns():

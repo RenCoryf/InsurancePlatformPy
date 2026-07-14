@@ -14,12 +14,16 @@ class SupportAgent(Base, TimestampMixin):
     ROLES = (ROLE_MANAGER, ROLE_ADMIN)
 
     PERMISSION_CHATS = "chats"
+    PERMISSION_APPLICATIONS = "applications"
+    PERMISSION_DEALS = "deals"
     PERMISSION_DEALS_CREATE = "deals_create"
     PERMISSION_CERTIFICATES = "certificates"
     PERMISSION_REPORTS = "reports"
     PERMISSION_USERS_VIEW = "users_view"
     ALLOWED_PERMISSIONS = (
         PERMISSION_CHATS,
+        PERMISSION_APPLICATIONS,
+        PERMISSION_DEALS,
         PERMISSION_DEALS_CREATE,
         PERMISSION_CERTIFICATES,
         PERMISSION_REPORTS,
