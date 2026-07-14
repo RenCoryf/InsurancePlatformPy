@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     environment: str = "development"  # set to "production" to enable startup secret guards
     internal_secret: str = "dev-internal-secret-change-me"
     max_message_bytes: int = 64_000
-    max_file_bytes: int = 25_000_000
+    max_file_bytes: int = 20_000_000  # ТЗ п. 8.3: до 20 МБ на файл
 
     minio_endpoint: str = "minio:9000"
     minio_access_key: str = "minioadmin"

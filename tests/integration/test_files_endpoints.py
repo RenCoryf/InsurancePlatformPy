@@ -52,19 +52,55 @@ async def test_upload_then_download(client, user_and_chat, monkeypatch):
     monkeypatch.setattr(app.state, "minio", fake, raising=False)
     monkeypatch.setattr(settings, "minio_bucket", "test-bucket")
 
-    files = {"file": ("hi.txt", io.BytesIO(b"hello"), "text/plain")}
+    files = {"file": ("hi.pdf", io.BytesIO(b"hello"), "application/pdf")}
     data = {"chat_id": str(chat.id)}
     r = await client.post("/api/v1/files/", files=files, data=data,
                           headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 201, r.text
     body = r.json()
-    assert body["name"] == "hi.txt" and body["mime"] == "text/plain" and body["size"] == 5
+    assert body["name"] == "hi.pdf" and body["mime"] == "application/pdf" and body["size"] == 5
     file_id = body["file_id"]
 
     r2 = await client.get(f"/api/v1/files/{file_id}/", headers={"Authorization": f"Bearer {token}"})
     assert r2.status_code == 200
-    assert r2.headers["content-type"].startswith("text/plain")
+    assert r2.headers["content-type"].startswith("application/pdf")
     assert r2.content == b"hello"
+
+
+@pytest.mark.asyncio
+async def test_upload_rejects_disallowed_type(client, user_and_chat, monkeypatch):
+    _user, chat, token = user_and_chat
+
+    from app.main import app
+    monkeypatch.setattr(app.state, "minio", object(), raising=False)
+
+    files = {"file": ("notes.txt", io.BytesIO(b"hello"), "text/plain")}
+    data = {"chat_id": str(chat.id)}
+    r = await client.post("/api/v1/files/", files=files, data=data,
+                          headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 415, r.text
+    body = r.json()
+    assert body["code"] == "unsupported_file_type"
+    assert "jpg, png, pdf, heic" in body["reason"]
+
+
+@pytest.mark.asyncio
+async def test_upload_allows_heic_with_octet_stream_mime(client, user_and_chat, monkeypatch):
+    _user, chat, token = user_and_chat
+
+    from app.main import app
+
+    class FakeMinIO:
+        def put_object(self, bucket, key, data, length, content_type=None): pass
+        def bucket_exists(self, bucket): return True
+
+    monkeypatch.setattr(app.state, "minio", FakeMinIO(), raising=False)
+
+    files = {"file": ("photo.HEIC", io.BytesIO(b"x"), "application/octet-stream")}
+    data = {"chat_id": str(chat.id)}
+    r = await client.post("/api/v1/files/", files=files, data=data,
+                          headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 201, r.text
 
 
 @pytest.mark.asyncio
@@ -80,7 +116,7 @@ async def test_upload_rejects_non_participant(client, user_and_chat, db_session,
     svc = AuthService(db_session)
     other_token = svc._generate_access_token(user_id=u2.id)
 
-    files = {"file": ("a.txt", io.BytesIO(b"x"), "text/plain")}
+    files = {"file": ("a.pdf", io.BytesIO(b"x"), "application/pdf")}
     data = {"chat_id": str(chat.id)}
     r = await client.post("/api/v1/files/", files=files, data=data,
                           headers={"Authorization": f"Bearer {other_token}"})

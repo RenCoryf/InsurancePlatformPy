@@ -8,7 +8,6 @@ from app.api.routers.admin_reports import router as admin_reports_router
 from app.api.routers.admin_users import router as admin_users_router
 from app.api.routers.applications import router as applications_router
 from app.api.routers.auth import router as auth_router
-from app.api.routers.bonuses import router as bonuses_router
 from app.api.routers.certificates import router as certificates_router
 from app.api.routers.chats import router as chats_router
 from app.api.routers.deals import router as deals_router
@@ -29,7 +28,6 @@ api_router.include_router(referrals_router)
 api_router.include_router(partners_router)
 api_router.include_router(applications_router)
 api_router.include_router(deals_router)
-api_router.include_router(bonuses_router)
 api_router.include_router(certificates_router)
 api_router.include_router(chats_router)
 api_router.include_router(files_router)

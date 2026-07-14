@@ -55,7 +55,7 @@ async def test_upload_creates_row_and_puts_object(db_session, chat_and_user):
     data = io.BytesIO(b"abc")
     f = await svc.upload(
         chat_id=chat.id, uploader_subject_type="user", uploader_subject_id=user.id,
-        original_name="hello.txt", mime_type="text/plain", size_bytes=3, stream=data,
+        original_name="hello.pdf", mime_type="application/pdf", size_bytes=3, stream=data,
     )
     assert f.minio_key.startswith(f"chats/{chat.id}/")
     assert len(fake.put_calls) == 1
@@ -69,7 +69,7 @@ async def test_upload_too_large_413(db_session, chat_and_user):
     with pytest.raises(ChatError) as ei:
         await svc.upload(
             chat_id=chat.id, uploader_subject_type="user", uploader_subject_id=user.id,
-            original_name="big.bin", mime_type="application/octet-stream", size_bytes=10, stream=io.BytesIO(b"x" * 10),
+            original_name="big.pdf", mime_type="application/pdf", size_bytes=10, stream=io.BytesIO(b"x" * 10),
         )
     assert ei.value.http_status == 413
 
@@ -92,6 +92,6 @@ async def test_upload_db_failure_cleans_minio_object(db_session, chat_and_user, 
     with pytest.raises(RuntimeError):
         await svc.upload(
             chat_id=chat.id, uploader_subject_type="user", uploader_subject_id=user.id,
-            original_name="x.txt", mime_type="text/plain", size_bytes=3, stream=io.BytesIO(b"abc"),
+            original_name="x.png", mime_type="image/png", size_bytes=3, stream=io.BytesIO(b"abc"),
         )
     assert fake.objects == {}  # MinIO cleaned up

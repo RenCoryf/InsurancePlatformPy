@@ -98,24 +98,6 @@ class AccrueRequest(BaseModel):
     base_amount: Decimal = Field(..., gt=0, description="Базовая сумма доходного события")
 
 
-class BonusWithdrawalCreateRequest(BaseModel):
-    amount: Decimal = Field(..., gt=0, description="Сумма к выводу")
-    comment: str | None = Field(None, max_length=500, description="Комментарий пользователя")
-
-
-class BonusWithdrawalResponse(BaseModel):
-    id: int
-    user_id: int
-    amount: Decimal
-    status: str
-    comment: str | None
-    created_at: datetime
-    processed_at: datetime | None
-
-    class Config:
-        from_attributes = True
-
-
 class RequestSmsCodeRequest(BaseModel):
     phone: str = Field(..., min_length=10, max_length=20, description="Phone number")
 

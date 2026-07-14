@@ -234,14 +234,14 @@ async def test_full_chat_round_trip():
         async with httpx.AsyncClient(base_url=PYTHON_BASE) as c:
             up = await c.post(
                 "/api/v1/files/",
-                files={"file": ("e2e.txt", b"e2e payload", "text/plain")},
+                files={"file": ("e2e.pdf", b"e2e payload", "application/pdf")},
                 data={"chat_id": chat_id},
                 headers={"Authorization": f"Bearer {customer_token}"},
             )
             up.raise_for_status()
             file_meta = up.json()
-        assert file_meta["name"] == "e2e.txt"
-        assert file_meta["mime"] == "text/plain"
+        assert file_meta["name"] == "e2e.pdf"
+        assert file_meta["mime"] == "application/pdf"
         assert file_meta["size"] == 11
 
         file_env = {"type": "send_file", "client_msg_id": "e2e-file-1", "file_id": file_meta["file_id"]}
@@ -251,7 +251,7 @@ async def test_full_chat_round_trip():
         assert customer_file["type"] == "file"
         assert customer_file["message"]["kind"] == "file"
         assert customer_file["message"]["file"]["file_id"] == file_meta["file_id"]
-        assert customer_file["message"]["file"]["name"] == "e2e.txt"
+        assert customer_file["message"]["file"]["name"] == "e2e.pdf"
         assert support_file["message"]["id"] == customer_file["message"]["id"]
 
         # 8. History endpoint matches what we sent: 3 messages, newest first.
@@ -264,7 +264,7 @@ async def test_full_chat_round_trip():
             history = h.json()
         assert len(history["messages"]) == 3
         kinds_and_bodies = [(m["kind"], m.get("body"), (m.get("file") or {}).get("name")) for m in history["messages"]]
-        assert kinds_and_bodies[0] == ("file", None, "e2e.txt")
+        assert kinds_and_bodies[0] == ("file", None, "e2e.pdf")
         assert kinds_and_bodies[1] == ("message", "hi customer", None)
         assert kinds_and_bodies[2] == ("message", "hello support", None)
     finally:
