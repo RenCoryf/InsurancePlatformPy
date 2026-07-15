@@ -29,16 +29,18 @@ class SMSService_SMSC:
         username: str,
         password: str,
         lk_url: str,
+        sender: str | None = None,
     ):
         self.username = username
         self.password = password
         self._lk_url = lk_url
+        self.sender = sender or None
 
     @classmethod
     def with_credentials(
-        cls, username: str, password: str, lk_url: str
+        cls, username: str, password: str, lk_url: str, sender: str | None = None
     ) -> "SMSService_SMSC":
-        return cls(username=username, password=password, lk_url=lk_url)
+        return cls(username=username, password=password, lk_url=lk_url, sender=sender)
 
     def _gen_mes(self, code: str) -> str:
         return f"Ваш код подтверждения: {code}\nЛичный кабинет: {self.ReserveURL}"
@@ -53,16 +55,20 @@ class SMSService_SMSC:
             sms_id=data.get("id"),
         )
 
-    async def send_sms(self, phone: str, code: str) -> SMSCResult:
+    async def send_message(self, phone: str, message: str) -> SMSCResult:
+        params = {
+            "login": self.username,
+            "psw": self.password,
+            "phones": phone,
+            "mes": message,
+            "fmt": 3,  # JSON-ответ
+        }
+        if self.sender:
+            params["sender"] = self.sender
         async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                f"{self.URL}/sys/send.php",
-                params={
-                    "login": self.username,
-                    "psw": self.password,
-                    "phones": phone,
-                    "mes": self._gen_mes(code),
-                },
-            )
+            resp = await client.get(f"{self.URL}/sys/send.php", params=params)
         data = resp.json()
         return self._parse_smsc_response(data)
+
+    async def send_sms(self, phone: str, code: str) -> SMSCResult:
+        return await self.send_message(phone, self._gen_mes(code))

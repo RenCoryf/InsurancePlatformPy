@@ -19,10 +19,18 @@ from app.models.base import Base
 # versions).
 import app.models.users.entities  # noqa: F401   (User)
 import app.models.users.refresh_token  # noqa: F401   (RefreshToken)
+import app.models.users.referral  # noqa: F401   (ReferralAccrual)
 import app.models.tables.chat  # noqa: F401
 import app.models.tables.message  # noqa: F401
 import app.models.tables.file  # noqa: F401
 import app.models.tables.support_agent  # noqa: F401
+import app.models.settings  # noqa: F401   (PlatformSettings)
+import app.models.audit_log  # noqa: F401   (AuditLog)
+import app.models.sms_notification  # noqa: F401   (SMSNotification)
+import app.models.applications  # noqa: F401   (Application, ApplicationStatusEvent)
+import app.models.deals  # noqa: F401   (Deal, DealStatusEvent)
+import app.models.partners  # noqa: F401   (Partner)
+import app.models.certificates  # noqa: F401   (CertificateRequest, CertificateStatusEvent)
 
 
 config = context.config

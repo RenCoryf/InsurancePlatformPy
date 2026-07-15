@@ -34,14 +34,15 @@ class UserRegisterRequest(BaseModel):
 
 class UserResponse(BaseModel):
     id: int
-    email: str
-    phone: str
+    email: str | None
+    phone: str | None
     first_name: str | None
     last_name: str | None
     patronymic: str | None
     balance: Decimal = Decimal("0")
     pending_balance: Decimal = Decimal("0")
     referral_code: str | None = None
+    status: str = "active"
 
     class Config:
         from_attributes = True
@@ -82,9 +83,11 @@ class StructureSummaryResponse(BaseModel):
 
 class StructureMemberInfo(BaseModel):
     id: int
-    full_name: str
-    phone: str
+    # Приватность: имя + первая буква фамилии («Иван П.»), без телефона.
+    name: str
     joined_at: datetime
+    structure_count: int
+    status: str
 
 
 class StructureListResponse(BaseModel):
@@ -93,24 +96,6 @@ class StructureListResponse(BaseModel):
 
 class AccrueRequest(BaseModel):
     base_amount: Decimal = Field(..., gt=0, description="Базовая сумма доходного события")
-
-
-class BonusWithdrawalCreateRequest(BaseModel):
-    amount: Decimal = Field(..., gt=0, description="Сумма к выводу")
-    comment: str | None = Field(None, max_length=500, description="Комментарий пользователя")
-
-
-class BonusWithdrawalResponse(BaseModel):
-    id: int
-    user_id: int
-    amount: Decimal
-    status: str
-    comment: str | None
-    created_at: datetime
-    processed_at: datetime | None
-
-    class Config:
-        from_attributes = True
 
 
 class RequestSmsCodeRequest(BaseModel):

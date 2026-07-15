@@ -22,7 +22,8 @@ class Message(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     __table_args__ = (
-        CheckConstraint("sender_subject_type IN ('user', 'support')", name="ck_messages_sender_subject_type"),
+        # system — служебные сообщения платформы (sender_subject_id = 0).
+        CheckConstraint("sender_subject_type IN ('user', 'support', 'system')", name="ck_messages_sender_subject_type"),
         CheckConstraint("kind IN ('message', 'file')", name="ck_messages_kind"),
         CheckConstraint(
             "(kind = 'message' AND body IS NOT NULL AND file_id IS NULL) OR "

@@ -15,6 +15,7 @@ from app.repositories.chat_repository import ChatRepository
 from app.repositories.file_repository import FileRepository
 from app.repositories.message_repository import MessageRepository
 from app.services.errors import ChatError
+from app.services.notification_service import NotificationService
 
 
 _VALID_CHAT_TYPES = {"main", "bonus"}
@@ -99,6 +100,7 @@ class InternalService:
         if chat is None:
             raise ChatError("validation", "chat not found", http_status=404)
 
+        agent: SupportAgent | None = None
         if subject.type == "user":
             if chat.owner_user_id != subject.id:
                 raise ChatError("validation", "not a participant", http_status=403)
@@ -135,6 +137,14 @@ class InternalService:
         )
         if created:
             await cr.bump_last_message_at(chat_id)
+            # Сообщение от менеджера владельцу чата — SMS в очередь
+            # (получатель мог быть офлайн; дневной лимит соблюдает sms_job).
+            if agent is not None:
+                await NotificationService(self._session).send(
+                    chat.owner_user_id,
+                    "chat_new_message",
+                    {"sender": agent.display_name},
+                )
         await self._session.commit()
         if created:
             await self._session.refresh(chat)

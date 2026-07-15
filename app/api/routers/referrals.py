@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
+from app.api.deps.redis_dep import get_redis
 from app.core.database import get_async_session
 from app.models.users.dto import (
     AccrueRequest,
@@ -19,10 +20,12 @@ from app.services.referral_service import ReferralService
 router = APIRouter(prefix="/referrals", tags=["referrals"])
 
 
-def _full_name(user: User) -> str:
-    parts = [user.last_name, user.first_name, user.patronymic]
-    name = " ".join(p for p in parts if p)
-    return name or user.phone
+def _display_name(user: User) -> str:
+    """Имя + первая буква фамилии — телефон и полная фамилия не раскрываются."""
+    first = user.first_name or ""
+    last_initial = f"{user.last_name[0]}." if user.last_name else ""
+    name = " ".join(p for p in (first, last_initial) if p)
+    return name or f"Пользователь #{user.id}"
 
 
 @router.get("/me/balance/", response_model=BalanceResponse)
@@ -59,10 +62,11 @@ async def structure_list(
     for lvl, members in raw.items():
         levels[lvl] = [
             StructureMemberInfo(
-                id=m.id,
-                full_name=_full_name(m),
-                phone=m.phone,
-                joined_at=m.created_at,
+                id=m.user.id,
+                name=_display_name(m.user),
+                joined_at=m.user.created_at,
+                structure_count=m.structure_count,
+                status=m.user.status,
             )
             for m in members
         ]
@@ -90,8 +94,9 @@ async def accrue(
     payload: AccrueRequest,
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_async_session),
+    redis=Depends(get_redis),
 ) -> list[ReferralAccrualResponse]:
-    service = ReferralService(session)
+    service = ReferralService(session, redis)
     try:
         accruals = await service.accrue_for_source(current_user, payload.base_amount)
     except ValueError as exc:

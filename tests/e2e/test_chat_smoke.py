@@ -35,8 +35,8 @@ import websockets
 
 PYTHON_BASE = "http://127.0.0.1:8000"
 GO_WS_BASE = "ws://127.0.0.1:8080/ws"
-ADMIN_LOGIN = "admin"
-ADMIN_PASSWORD = "admin"
+ADMIN_LOGIN = "e2e-admin"
+ADMIN_PASSWORD = "e2e-admin-pw"
 SUPPORT_LOGIN = "e2e-support"
 SUPPORT_PASSWORD = "e2e-support-pw"
 
@@ -55,13 +55,56 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+async def _ensure_admin_jwt() -> str:
+    """Seed an e2e admin agent directly in the dev DB and return its JWT.
+
+    /admin/* is JWT-protected (role=admin) since the Basic Auth removal, so the
+    admin itself has to be bootstrapped at the DB level — same technique as
+    `_seed_customer`.
+    """
+    import asyncpg
+    from passlib.context import CryptContext
+
+    from app.core.config import settings
+
+    pwd_hash = CryptContext(schemes=["bcrypt"], deprecated="auto").hash(ADMIN_PASSWORD)
+    db_name = os.environ.get("E2E_DB_NAME", "ipd_db")
+    conn = await asyncpg.connect(
+        host=settings.db_host, port=settings.db_port,
+        user=settings.db_user, password=settings.db_password,
+        database=db_name,
+    )
+    try:
+        await conn.execute(
+            """
+            INSERT INTO support_agents (login, password_hash, display_name, is_active,
+                                        role, permissions, is_owner, created_at, updated_at)
+            VALUES ($1, $2, 'E2E Admin', true, 'admin', '[]'::json, false, now(), now())
+            ON CONFLICT (login) DO UPDATE
+                SET password_hash = EXCLUDED.password_hash, is_active = true, role = 'admin'
+            """,
+            ADMIN_LOGIN, pwd_hash,
+        )
+    finally:
+        await conn.close()
+
+    async with httpx.AsyncClient(base_url=PYTHON_BASE) as c:
+        login = await c.post(
+            "/api/v1/support/login/",
+            json={"login": ADMIN_LOGIN, "password": ADMIN_PASSWORD},
+        )
+        login.raise_for_status()
+        return login.json()["access_token"]
+
+
 async def _ensure_support_agent() -> str:
     """Idempotently create the e2e support agent and return a login JWT."""
+    admin_jwt = await _ensure_admin_jwt()
     async with httpx.AsyncClient(base_url=PYTHON_BASE) as c:
         create = await c.post(
             "/api/v1/admin/support-agents/",
             json={"login": SUPPORT_LOGIN, "password": SUPPORT_PASSWORD, "display_name": "E2E Support"},
-            auth=(ADMIN_LOGIN, ADMIN_PASSWORD),
+            headers={"Authorization": f"Bearer {admin_jwt}"},
         )
         if create.status_code not in (201, 409):
             create.raise_for_status()
@@ -191,14 +234,14 @@ async def test_full_chat_round_trip():
         async with httpx.AsyncClient(base_url=PYTHON_BASE) as c:
             up = await c.post(
                 "/api/v1/files/",
-                files={"file": ("e2e.txt", b"e2e payload", "text/plain")},
+                files={"file": ("e2e.pdf", b"e2e payload", "application/pdf")},
                 data={"chat_id": chat_id},
                 headers={"Authorization": f"Bearer {customer_token}"},
             )
             up.raise_for_status()
             file_meta = up.json()
-        assert file_meta["name"] == "e2e.txt"
-        assert file_meta["mime"] == "text/plain"
+        assert file_meta["name"] == "e2e.pdf"
+        assert file_meta["mime"] == "application/pdf"
         assert file_meta["size"] == 11
 
         file_env = {"type": "send_file", "client_msg_id": "e2e-file-1", "file_id": file_meta["file_id"]}
@@ -208,7 +251,7 @@ async def test_full_chat_round_trip():
         assert customer_file["type"] == "file"
         assert customer_file["message"]["kind"] == "file"
         assert customer_file["message"]["file"]["file_id"] == file_meta["file_id"]
-        assert customer_file["message"]["file"]["name"] == "e2e.txt"
+        assert customer_file["message"]["file"]["name"] == "e2e.pdf"
         assert support_file["message"]["id"] == customer_file["message"]["id"]
 
         # 8. History endpoint matches what we sent: 3 messages, newest first.
@@ -221,7 +264,7 @@ async def test_full_chat_round_trip():
             history = h.json()
         assert len(history["messages"]) == 3
         kinds_and_bodies = [(m["kind"], m.get("body"), (m.get("file") or {}).get("name")) for m in history["messages"]]
-        assert kinds_and_bodies[0] == ("file", None, "e2e.txt")
+        assert kinds_and_bodies[0] == ("file", None, "e2e.pdf")
         assert kinds_and_bodies[1] == ("message", "hi customer", None)
         assert kinds_and_bodies[2] == ("message", "hello support", None)
     finally:

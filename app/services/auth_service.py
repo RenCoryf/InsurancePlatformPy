@@ -2,7 +2,7 @@ import logging
 import secrets
 from datetime import datetime, timedelta
 
-from jose import JWTError, jwt
+from jose import jwt
 from passlib.context import CryptContext
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,15 +17,29 @@ from app.models.users.dto import (
 )
 from app.models.users.entities import User
 from app.models.users.refresh_token import RefreshToken
+from app.services.code_generator_service import CodeManager
+from app.services.notification_service import NotificationService
+from app.services.referral_service import ReferralService
+from app.services.errors import (
+    ReferralLinkInvalidError,
+    SmsRateLimitError,
+    UserBlockedError,
+)
+from app.services.settings_service import SettingsService
 from app.services.sms_service import SMSService_SMSC
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 logger = logging.getLogger(__name__)
 
+SMS_DAILY_COUNTER_TTL = 24 * 60 * 60
+
 
 class AuthService:
-    def __init__(self, session: AsyncSession):
+    def __init__(self, session: AsyncSession, redis=None):
         self._session = session
+        self._redis = redis
+        self._code_manager = CodeManager(redis) if redis is not None else None
+        self._settings_service = SettingsService(session, redis)
 
     def _hash_password(self, password: str) -> str:
         return pwd_context.hash(password)
@@ -79,32 +93,103 @@ class AuthService:
 
         return refresh_token
 
-    def _verify_sms_code(self, code: str, phone: str) -> bool:
-        sms_service = SMSService_SMSC.with_credentials()
-        is_valid = sms_service.verify_code(code, phone)
-        logger.info(f" Code verification: {code} -> {is_valid}")
+    def _require_code_manager(self) -> CodeManager:
+        if self._code_manager is None:
+            raise RuntimeError("Redis is not available: SMS codes cannot be processed")
+        return self._code_manager
+
+    async def _verify_sms_code(self, phone: str, code: str) -> bool:
+        is_valid = await self._require_code_manager().verify_code(phone, code)
+        logger.info("SMS code verification for %s -> %s", phone, is_valid)
         return is_valid
 
+    async def _enforce_sms_daily_limit(self, phone: str) -> None:
+        platform = await self._settings_service.get_values()
+        limit = int(platform.get("sms_daily_limit_per_user") or 0)
+        if limit <= 0:
+            return
+        key = f"sms_daily:{phone}"
+        count = await self._redis.incr(key)
+        if count == 1:
+            await self._redis.expire(key, SMS_DAILY_COUNTER_TTL)
+        if count > limit:
+            raise SmsRateLimitError(limit)
+
     async def request_sms_code(self, phone: str) -> None:
-        logger.info(f"Code sent to {phone}: {self.MOCK_SMS_CODE}")
+        """Выслать код подтверждения. Текст — из SMS-шаблонов настроек:
+        ``login_code`` для существующего пользователя, ``registration_code``
+        для нового номера. Отправка синхронная (мимо очереди): код живёт
+        10 минут и ждать фоновую задачу нельзя.
+        """
+        code_manager = self._require_code_manager()
+        await self._enforce_sms_daily_limit(phone)
+
+        code = await code_manager.new_code(phone)
+
+        existing = await self._session.execute(
+            select(User).where(User.phone == phone)
+        )
+        template = (
+            "login_code" if existing.scalar_one_or_none() is not None
+            else "registration_code"
+        )
+        text = await NotificationService(self._session, self._redis).render_template(
+            template, {"code": code}
+        )
+
+        if settings.smsc_login and settings.smsc_password:
+            platform = await self._settings_service.get_values()
+            sms_service = SMSService_SMSC.with_credentials(
+                username=settings.smsc_login,
+                password=settings.smsc_password,
+                lk_url=settings.sms_lk_url,
+                sender=platform.get("sms_sender_id") or None,
+            )
+            try:
+                await sms_service.send_message(phone, text)
+            except Exception:
+                # Код уже лежит в Redis; не раскрываем его в ошибке.
+                logger.exception("Failed to send SMS to %s", phone)
+                raise RuntimeError("Failed to send SMS")
+        else:
+            # Dev-режим: SMSC не сконфигурирован, код только в логе.
+            logger.info("SMSC is not configured; code for %s: %s", phone, code)
 
     async def _ensure_phone_unique(self, phone: str) -> None:
         result = await self._session.execute(select(User).where(User.phone == phone))
         if result.scalar_one_or_none() is not None:
             raise ValueError("Phone number already registered")
 
+    async def _resolve_referrer_id(self, referral_code: str) -> int | None:
+        """id реферера, либо None для корневого кода.
+
+        Регистрация возможна только по действующей ссылке: несуществующий код
+        или заблокированный/удалённый реферер → ReferralLinkInvalidError.
+        """
+        platform = await self._settings_service.get_values()
+        root_code = platform.get("root_referral_code")
+        if (
+            root_code
+            and platform.get("root_referral_active")
+            and referral_code == root_code
+        ):
+            return None
+
+        ref_result = await self._session.execute(
+            select(User).where(User.referral_code == referral_code)
+        )
+        referrer = ref_result.scalar_one_or_none()
+        if referrer is None or referrer.status != User.STATUS_ACTIVE:
+            raise ReferralLinkInvalidError()
+        return referrer.id
+
     async def register(self, data: RegisterRequest) -> TokenResponse:
-        if not self._verify_sms_code(data.code):
+        if not await self._verify_sms_code(data.phone, data.code):
             raise ValueError("Invalid or expired verification code")
 
         await self._ensure_phone_unique(data.phone)
 
-        ref_result = await self._session.execute(
-            select(User).where(User.referral_code == data.referral_code)
-        )
-        referrer = ref_result.scalar_one_or_none()
-        if not referrer:
-            raise ValueError("Invalid referral code")
+        referrer_id = await self._resolve_referrer_id(data.referral_code)
 
         user = User(
             email=data.email,
@@ -114,12 +199,22 @@ class AuthService:
             last_name=data.last_name,
             patronymic=data.patronymic,
             referral_code=await self._generate_unique_referral_code(),
-            referrer_id=referrer.id,
+            referrer_id=referrer_id,
         )
 
         self._session.add(user)
         await self._session.commit()
         await self._session.refresh(user)
+
+        # Приветственное SMS уходит через очередь (фоновая задача sms_job).
+        await NotificationService(self._session).send(
+            user.id, "registration_welcome", {"referral_code": user.referral_code}
+        )
+        await self._session.commit()
+        # Дерево изменилось — сбрасываем кеш цепочки нового пользователя.
+        await ReferralService(self._session, self._redis).invalidate_upline_cache(
+            user.id
+        )
 
         access_token = self._generate_access_token(user.id)
         refresh_token = await self._create_refresh_token(user.id)
@@ -131,7 +226,7 @@ class AuthService:
         )
 
     async def login(self, data: LoginWithCodeRequest) -> TokenResponse:
-        if not self._verify_sms_code(data.code):
+        if not await self._verify_sms_code(data.phone, data.code):
             raise ValueError("Invalid or expired verification code")
 
         result = await self._session.execute(
@@ -139,11 +234,16 @@ class AuthService:
         )
         user = result.scalar_one_or_none()
 
-        if not user:
+        if not user or user.status == User.STATUS_DELETED:
             raise ValueError("User not found")
 
         if not self._verify_password(data.password, user.password_hash):
             raise ValueError("Invalid password")
+
+        if user.status == User.STATUS_BLOCKED:
+            raise UserBlockedError(
+                reason=user.blocked_reason, comment=user.blocked_comment
+            )
 
         access_token = self._generate_access_token(user.id)
         refresh_token = await self._create_refresh_token(user.id)
@@ -175,6 +275,13 @@ class AuthService:
         user = result.scalar_one_or_none()
 
         if not user:
+            raise ValueError("User not found")
+
+        if user.status == User.STATUS_BLOCKED:
+            raise UserBlockedError(
+                reason=user.blocked_reason, comment=user.blocked_comment
+            )
+        if user.status == User.STATUS_DELETED:
             raise ValueError("User not found")
 
         access_token = self._generate_access_token(user.id)

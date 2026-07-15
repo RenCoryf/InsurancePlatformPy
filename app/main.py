@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 import dotenv
 import redis.asyncio as redis
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
@@ -12,7 +13,9 @@ from app.api.main_router import api_router
 from app.api.routers.internal import router as internal_router
 from app.core.config import settings
 from app.core.minio_client import build_minio_client, ensure_bucket
-from app.services.errors import ChatError
+from app.services.errors import ChatError, ReferralLinkInvalidError
+from app.tasks.accrual_job import process_matured_accruals_job
+from app.tasks.sms_job import send_pending_sms_job
 
 
 def _check_production_defaults() -> None:
@@ -44,8 +47,10 @@ async def lifespan(app: FastAPI):
     dotenv.load_dotenv()
     _check_production_defaults()
     app.state.redis = redis.Redis(
-        host="localhost",
-        port=6379,
+        host=settings.redis_host,
+        port=settings.redis_port,
+        password=settings.redis_password,
+        db=settings.redis_db,
         decode_responses=True,
     )
     app.state.minio = build_minio_client()
@@ -54,7 +59,26 @@ async def lifespan(app: FastAPI):
     except Exception:
         # MinIO may be unreachable in test/dev environments; tests inject a fake client.
         pass
+    scheduler: AsyncIOScheduler | None = None
+    if settings.scheduler_enabled:
+        scheduler = AsyncIOScheduler(timezone="UTC")
+        scheduler.add_job(
+            process_matured_accruals_job,
+            "interval",
+            hours=1,
+            id="process_matured_accruals",
+        )
+        scheduler.add_job(
+            send_pending_sms_job,
+            "interval",
+            minutes=1,
+            id="send_pending_sms",
+        )
+        scheduler.start()
+    app.state.scheduler = scheduler
     yield
+    if scheduler is not None:
+        scheduler.shutdown(wait=False)
     await app.state.redis.close()
 
 
@@ -89,6 +113,13 @@ async def _internal_validation_handler(request: Request, exc: RequestValidationE
 @app.exception_handler(ChatError)
 async def _chat_error_handler(request: Request, exc: ChatError) -> JSONResponse:
     return JSONResponse(status_code=exc.http_status, content={"code": exc.code, "reason": exc.reason})
+
+
+@app.exception_handler(ReferralLinkInvalidError)
+async def _referral_invalid_handler(request: Request, exc: ReferralLinkInvalidError) -> JSONResponse:
+    """Регистрация только по действующей реферальной ссылке: несуществующий код
+    или заблокированный/удалённый реферер → 422 с фиксированным телом."""
+    return JSONResponse(status_code=422, content={"error": exc.message})
 
 
 if __name__ == "__main__":

@@ -8,6 +8,20 @@ from app.models.tables.file import File
 from app.repositories.file_repository import FileRepository
 from app.services.errors import ChatError
 
+# ТЗ п. 8.3: в чат допускаются только jpg, png, pdf, heic.
+ALLOWED_EXTENSIONS = {"jpg", "jpeg", "png", "pdf", "heic"}
+ALLOWED_MIME_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "application/pdf",
+    "image/heic",
+    "image/heif",
+    # Браузер может не знать тип (типично для heic) и прислать octet-stream —
+    # тогда решает расширение.
+    "application/octet-stream",
+}
+UNSUPPORTED_FILE_MESSAGE = "Недопустимый формат файла. Разрешены: jpg, png, pdf, heic"
+
 
 class FileService:
     def __init__(self, session: AsyncSession, minio_client, bucket: str, max_bytes: int):
@@ -27,6 +41,9 @@ class FileService:
         size_bytes: int,
         stream: BinaryIO,
     ) -> File:
+        ext = original_name.rsplit(".", 1)[-1].lower() if "." in original_name else ""
+        if ext not in ALLOWED_EXTENSIONS or mime_type not in ALLOWED_MIME_TYPES:
+            raise ChatError("unsupported_file_type", UNSUPPORTED_FILE_MESSAGE, http_status=415)
         if size_bytes > self._max_bytes:
             raise ChatError("payload_too_large", "file exceeds max_file_bytes", http_status=413)
 

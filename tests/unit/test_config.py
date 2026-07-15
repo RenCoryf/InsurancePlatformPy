@@ -4,7 +4,7 @@ from app.core.config import settings
 def test_chat_config_defaults():
     # These attributes must exist with sensible defaults.
     assert settings.max_message_bytes == 64_000
-    assert settings.max_file_bytes == 25_000_000
+    assert settings.max_file_bytes == 20_000_000
     assert settings.minio_bucket == "chat-files"
     assert settings.minio_secure is False
     assert settings.environment == "development"
