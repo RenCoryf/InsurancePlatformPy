@@ -76,3 +76,11 @@ class MessageRepository:
             )
         rows = await self._session.execute(stmt)
         return list(rows.scalars().all())
+
+    async def get_by_id(self, message_id: UUID) -> Message | None:
+        row = await self._session.execute(select(Message).where(Message.id == message_id))
+        return row.scalar_one_or_none()
+
+    async def delete(self, message: Message) -> None:
+        await self._session.delete(message)
+        await self._session.flush()
