@@ -96,6 +96,23 @@ async def login(
         )
 
 
+@router.get("/debug-code/", include_in_schema=False)
+async def debug_code(phone: str, redis=Depends(get_redis)) -> dict:
+    """Dev-only helper: read the current OTP for a phone from Redis.
+    Enabled only outside production so the local frontend can show the code."""
+    from app.core.config import settings
+    if settings.environment == "production":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
+    import json
+    digits = "".join(c for c in phone if c.isdigit())
+    if len(digits) == 11 and digits.startswith("8"):
+        digits = "7" + digits[1:]
+    raw = await redis.get(f"otp:{digits}")
+    if not raw:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="no code")
+    return {"code": json.loads(raw)["code"]}
+
+
 @router.post("/refresh/", status_code=status.HTTP_200_OK)
 async def refresh_token(
     data: RefreshTokenRequest,

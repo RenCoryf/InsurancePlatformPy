@@ -20,6 +20,7 @@ from app.api.routers.support import router as support_router
 from app.api.routers.support_applications import router as support_applications_router
 from app.api.routers.support_certificates import router as support_certificates_router
 from app.api.routers.support_deals import router as support_deals_router
+from app.api.routers.templates import router as templates_router
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(auth_router)
@@ -42,3 +43,4 @@ api_router.include_router(support_router)
 api_router.include_router(support_applications_router)
 api_router.include_router(support_certificates_router)
 api_router.include_router(support_deals_router)
+api_router.include_router(templates_router)

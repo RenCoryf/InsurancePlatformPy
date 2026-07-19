@@ -122,12 +122,17 @@ class AuthService:
         10 минут и ждать фоновую задачу нельзя.
         """
         code_manager = self._require_code_manager()
-        await self._enforce_sms_daily_limit(phone)
+        # Нормализуем RU-номер: 8XXXXXXXXXX -> 7XXXXXXXXXX,
+        # чтобы OTP в Redis лежал под тем же ключом, что и phone в БД.
+        digits = "".join(c for c in phone if c.isdigit())
+        if len(digits) == 11 and digits.startswith("8"):
+            digits = "7" + digits[1:]
+        await self._enforce_sms_daily_limit(digits)
 
-        code = await code_manager.new_code(phone)
+        code = await code_manager.new_code(digits)
 
         existing = await self._session.execute(
-            select(User).where(User.phone == phone)
+            select(User).where(User.phone == digits)
         )
         template = (
             "login_code" if existing.scalar_one_or_none() is not None
@@ -136,6 +141,10 @@ class AuthService:
         text = await NotificationService(self._session, self._redis).render_template(
             template, {"code": code}
         )
+
+        if settings.environment != "production":
+            # Dev-режим: код всегда в логе, чтобы тестировать без реальной SMS
+            logger.warning("DEV-OTP code for %s: %s", digits, code)
 
         if settings.smsc_login and settings.smsc_password:
             platform = await self._settings_service.get_values()
@@ -146,14 +155,14 @@ class AuthService:
                 sender=platform.get("sms_sender_id") or None,
             )
             try:
-                await sms_service.send_message(phone, text)
+                await sms_service.send_message(digits, text)
             except Exception:
                 # Код уже лежит в Redis; не раскрываем его в ошибке.
-                logger.exception("Failed to send SMS to %s", phone)
+                logger.exception("Failed to send SMS to %s", digits)
                 raise RuntimeError("Failed to send SMS")
         else:
             # Dev-режим: SMSC не сконфигурирован, код только в логе.
-            logger.info("SMSC is not configured; code for %s: %s", phone, code)
+            logger.info("SMSC is not configured; code for %s: %s", digits, code)
 
     async def _ensure_phone_unique(self, phone: str) -> None:
         result = await self._session.execute(select(User).where(User.phone == phone))

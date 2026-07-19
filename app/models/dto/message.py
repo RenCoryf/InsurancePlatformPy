@@ -18,6 +18,11 @@ class MessageResponse(BaseModel):
     created_at: datetime
 
 
+class MessageCreate(BaseModel):
+    body: str
+    client_msg_id: str | None = None
+
+
 class MessageList(BaseModel):
     messages: list[MessageResponse]
     next_cursor: UUID | None

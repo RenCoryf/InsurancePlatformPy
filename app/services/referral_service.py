@@ -63,7 +63,9 @@ class ReferralService:
         return f"referral:upline:{user_id}"
 
     def build_referral_link(self, code: str) -> str:
-        return f"{settings.referral_link_base_url.rstrip('/')}/{code}"
+        base = settings.referral_link_base_url.rstrip("/")
+        sep = "" if base.endswith(("=", "/", ":")) else "/"
+        return f"{base}{sep}{code}"
 
     async def get_upline_ids(self, user: User) -> list[int]:
         """id до 4 рефереров вверх (уровень 1 — первый элемент), через Redis-кеш."""
