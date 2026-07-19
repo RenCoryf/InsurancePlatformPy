@@ -105,6 +105,8 @@ async def debug_code(phone: str, redis=Depends(get_redis)) -> dict:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
     import json
     digits = "".join(c for c in phone if c.isdigit())
+    if len(digits) == 11 and digits.startswith("8"):
+        digits = "7" + digits[1:]
     raw = await redis.get(f"otp:{digits}")
     if not raw:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="no code")

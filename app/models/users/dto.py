@@ -18,6 +18,9 @@ class UserRegisterRequest(BaseModel):
         digits_only = "".join(c for c in v if c.isdigit())
         if len(digits_only) < 10:
             raise ValueError("Phone must contain at least 10 digits")
+        # RU: пользователи часто вводят 8 вместо +7 — нормализуем к 7
+        if len(digits_only) == 11 and digits_only.startswith("8"):
+            digits_only = "7" + digits_only[1:]
         return digits_only
 
     @field_validator("password")
@@ -107,6 +110,9 @@ class RequestSmsCodeRequest(BaseModel):
         digits_only = "".join(c for c in v if c.isdigit())
         if len(digits_only) < 10:
             raise ValueError("Phone must contain at least 10 digits")
+        # RU: пользователи часто вводят 8 вместо +7 — нормализуем к 7
+        if len(digits_only) == 11 and digits_only.startswith("8"):
+            digits_only = "7" + digits_only[1:]
         return digits_only
 
 
@@ -129,6 +135,9 @@ class RegisterRequest(BaseModel):
         digits_only = "".join(c for c in v if c.isdigit())
         if len(digits_only) < 10:
             raise ValueError("Phone must contain at least 10 digits")
+        # RU: пользователи часто вводят 8 вместо +7 — нормализуем к 7
+        if len(digits_only) == 11 and digits_only.startswith("8"):
+            digits_only = "7" + digits_only[1:]
         return digits_only
 
     @field_validator("password")
@@ -154,6 +163,9 @@ class LoginWithCodeRequest(BaseModel):
         digits_only = "".join(c for c in v if c.isdigit())
         if len(digits_only) < 10:
             raise ValueError("Phone must contain at least 10 digits")
+        # RU: пользователи часто вводят 8 вместо +7 — нормализуем к 7
+        if len(digits_only) == 11 and digits_only.startswith("8"):
+            digits_only = "7" + digits_only[1:]
         return digits_only
 
 
